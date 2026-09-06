@@ -1,0 +1,178 @@
+{
+  "sourceProject": "Orca",
+  "repository": null,
+  "repositoryNote": "Private extraction repository location omitted from the public distribution.",
+  "revision": "75cf4aa5075d6e33ae4b2a5ded581c21907bc729",
+  "files": [
+    {
+      "source": "src/main/computer/runtime-client-error.ts",
+      "path": "vendor/orca/src/main/computer/runtime-client-error.ts",
+      "bytes": 203,
+      "sha256": "f4d011837b8dd7190484dd8c1a8bf2838dfd8d2945448e712cf693db039146e1"
+    },
+    {
+      "source": "src/main/computer/desktop-script-provider-params.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-provider-params.ts",
+      "bytes": 740,
+      "sha256": "bb364125519392ccb03c0089968e271c03d40e7832b7e5b1a33fd55cbe2e7aaa"
+    },
+    {
+      "source": "src/main/computer/desktop-script-action.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-action.ts",
+      "bytes": 7031,
+      "sha256": "b8e157cffebff6332226f110e6925f2ca9f84e946c6ede2fc21dd724fe5540d6"
+    },
+    {
+      "source": "src/shared/computer-use-key-spec.ts",
+      "path": "vendor/orca/src/shared/computer-use-key-spec.ts",
+      "bytes": 1733,
+      "sha256": "ead25f5342242bb514b3dc76b459885007d4269ce0f9b058060c2cc0f3d9f23c"
+    },
+    {
+      "source": "src/shared/event-loop-yield.ts",
+      "path": "vendor/orca/src/shared/event-loop-yield.ts",
+      "bytes": 1865,
+      "sha256": "d291b71f09eb88f24a849d0ae310f946deb7f93b0b6b490b6ea5a605ab7a53cf"
+    },
+    {
+      "source": "src/shared/utf8-byte-limits.ts",
+      "path": "vendor/orca/src/shared/utf8-byte-limits.ts",
+      "bytes": 4232,
+      "sha256": "07427f715975095184f81bcd1677808da82a6734e02cedc86c5b8fdee053ace3"
+    },
+    {
+      "source": "src/shared/clipboard-text.ts",
+      "path": "vendor/orca/src/shared/clipboard-text.ts",
+      "bytes": 5201,
+      "sha256": "50f3155063244d6d12ac1493c80029a75df256c031f986f76da64a94152d0c38"
+    },
+    {
+      "source": "src/main/computer/computer-clipboard-paste-validation.ts",
+      "path": "vendor/orca/src/main/computer/computer-clipboard-paste-validation.ts",
+      "bytes": 1444,
+      "sha256": "2377529bc5c35f890796140b32b55a956397a5ede91e400e1564ba66c0544e22"
+    },
+    {
+      "source": "src/main/computer/computer-provider-action-validation.ts",
+      "path": "vendor/orca/src/main/computer/computer-provider-action-validation.ts",
+      "bytes": 8381,
+      "sha256": "706912e0f1460b73a049b6cadf2801ffbc16324a25eaa1c08ce5024f773bec61"
+    },
+    {
+      "source": "src/main/computer/desktop-script-provider-bridge.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-provider-bridge.ts",
+      "bytes": 5862,
+      "sha256": "68a78ecea507dfb22a533df23b297b7e29668fdda6516910d9f9056f25950601"
+    },
+    {
+      "source": "src/main/computer/desktop-script-provider-paths.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-provider-paths.ts",
+      "bytes": 1283,
+      "sha256": "19eadb58b628564454482549758f1b8cdf5d9410e8e234299b9290fdd360a82e"
+    },
+    {
+      "source": "src/main/computer/desktop-script-snapshot-cache.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-snapshot-cache.ts",
+      "bytes": 6987,
+      "sha256": "bc235f0aa3e45637e0fff8fbe0a9ff10dd496cac98b58f7f3302f6a32afdbf62"
+    },
+    {
+      "source": "src/main/computer/desktop-script-snapshot-rendering.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-snapshot-rendering.ts",
+      "bytes": 5802,
+      "sha256": "bf2420b9111b6e8af48d2d490b13fa51da235054c34a617d362a7131d4b3859b"
+    },
+    {
+      "source": "src/main/computer/desktop-script-snapshot-store.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-snapshot-store.ts",
+      "bytes": 3082,
+      "sha256": "2160ff110985d796edbe04044e4dcc551e69025befc42b4181605ae365917981"
+    },
+    {
+      "source": "src/main/computer/computer-action-verification-normalization.ts",
+      "path": "vendor/orca/src/main/computer/computer-action-verification-normalization.ts",
+      "bytes": 746,
+      "sha256": "d774a429abd864b4c5296efcc17191cc31216638cb7169c19c79d9db88c1a159"
+    },
+    {
+      "source": "src/shared/child-process/windows-command-line.ts",
+      "path": "vendor/orca/src/shared/child-process/windows-command-line.ts",
+      "bytes": 5445,
+      "sha256": "54731fb25c5c31786080f830e355cc805bf1235d7a71a49927e72faf5465fbea"
+    },
+    {
+      "source": "src/shared/child-process/process-tree-termination.ts",
+      "path": "vendor/orca/src/shared/child-process/process-tree-termination.ts",
+      "bytes": 4396,
+      "sha256": "d6488cbb1718d28abfd2353cf5feaaded89dff0aba35e7e3e2c42e05d62861c7"
+    },
+    {
+      "source": "src/shared/child-process/bounded-output-sink.ts",
+      "path": "vendor/orca/src/shared/child-process/bounded-output-sink.ts",
+      "bytes": 886,
+      "sha256": "9a85e4ffab2cb7a06c7777576c3cdd52e06a70409e1374215a3437439497e360"
+    },
+    {
+      "source": "src/shared/child-process/run-process.ts",
+      "path": "vendor/orca/src/shared/child-process/run-process.ts",
+      "bytes": 16543,
+      "sha256": "f295745c7a505897078087d0d0ca9e4b4aef466e91e7253a06ec73819034b11f"
+    },
+    {
+      "source": "src/main/computer/windows-focus-helper-client.ts",
+      "path": "vendor/orca/src/main/computer/windows-focus-helper-client.ts",
+      "bytes": 5098,
+      "sha256": "c7be22b74307e611cc235fd48172457f6a7658687827c306ec84ce2dd5d657b5"
+    },
+    {
+      "source": "src/main/computer/desktop-script-provider-focus-retry.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-provider-focus-retry.ts",
+      "bytes": 1926,
+      "sha256": "6e43ffafd9699d6b2b8dfafac24176a8549593712843bb74aa5399e3d8eae9e2"
+    },
+    {
+      "source": "src/main/computer/desktop-script-provider-client.ts",
+      "path": "vendor/orca/src/main/computer/desktop-script-provider-client.ts",
+      "bytes": 10221,
+      "sha256": "daccb2f48ce367a5d2c07ab08587715d04245ef1619cd3e37c0e68a4a71f3400"
+    },
+    {
+      "source": "native/computer-use-windows/runtime.ps1",
+      "path": "native/computer-use-windows/runtime.ps1",
+      "bytes": 56988,
+      "sha256": "3579d3dbadb72767933ad56f2825c4e628c5bd98cebbff82b9d8487276b7380c"
+    },
+    {
+      "source": "native/computer-use-windows/focus-helper.ps1",
+      "path": "native/computer-use-windows/focus-helper.ps1",
+      "bytes": 9989,
+      "sha256": "64e4134965ead7f52b23a72f13285b5a8466b5c39821e7e7a56995f6f1bb7d8d"
+    },
+    {
+      "source": "native/computer-use-windows/runtime-render.test.ps1",
+      "path": "native/computer-use-windows/runtime-render.test.ps1",
+      "bytes": 8954,
+      "sha256": "a3a3fd5cbd414be197182166f9101c0dfbc3315dcc95686de579d13427b5d894"
+    },
+    {
+      "source": "native/computer-use-windows/focus-helper.smoke.ps1",
+      "path": "native/computer-use-windows/focus-helper.smoke.ps1",
+      "bytes": 3350,
+      "sha256": "95bae0dbab193c54f73834d6f462299cfe46ba21cc9fe8da56900866356ddfc9"
+    },
+    {
+      "source": "LICENSE",
+      "path": "LICENSE",
+      "bytes": 1070,
+      "sha256": "ff1b611f80580d49f4b97e93a97b24eb050b0671b26b8afe16341fab699112f3"
+    }
+  ],
+  "localModifications": [
+    {
+      "path": "native/computer-use-windows/runtime.ps1",
+      "bytes": 57039,
+      "sha256": "cd890054a3faf671b00ff01fa0aa918a5245fbf0027a2941b21ebb944b8a7aa2",
+      "reason": "Bind PostMessageW explicitly to preserve Korean text and UTF-16 surrogate pairs during keyboard input."
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+✔ CLI preserves text as data and translates element and window options (3.2881ms)
+✔ SSH sends a fixed encoded launcher and never embeds UI text in the command (0.5536ms)
+✔ IPC responds to a complete fragmented request without requiring the client to half-close (17.0712ms)
+✔ authenticated IPC routes SSH-side requests to one desktop owner and rejects the wrong token (59.7364ms)
+✔ desktop registration is discovered by a separate caller and removed on shutdown (6.2814ms)
+✔ installed CLI exposes help without requiring Orca or a Windows desktop (60.819ms)
+✔ RPC rejects unknown operations with structured JSON and a nonzero exit (56.7023ms)
+✔ extracted Orca provider retains runtime identity and verifies set-value after a separate invocation (17.0502ms)
+✔ separate CLI invocations preserve the observed element identity within one session (14.0682ms)
+✔ failed actions invalidate observation tokens so uncertain input is not replayed (8.3241ms)
+✔ actions require a fresh observation belonging to the same session and app (11.5263ms)
+✔ same-session concurrent operations are rejected before touching the desktop (2.539ms)
+✔ remote transport preserves JSON and Unicode through stdin without command interpolation (57.8267ms)
+✔ transport timeout reports an unknown remote outcome instead of retrying (69.6683ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 243.074
+
+Latest runtime status after cleanup:
+{
+  "VerifiedAt": "2026-09-06T11:41:11.9097601+09:00",
+  "ServerPid": 25628,
+  "ServerSession": 1,
+  "TaskState": "Running",
+  "TaskLogonType": "Interactive",
+  "TaskRunLevel": "Limited",
+  "AutomaticTriggers": 0,
+  "TemporaryTaskExists": false,
+  "StagingExists": false,
+  "TemporaryStateFiles": 0,
+  "PowerShellPolicyMachine": "AllSigned",
+  "PowerShellPolicyUser": "RemoteSigned"
+}

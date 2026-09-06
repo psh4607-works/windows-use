@@ -1,0 +1,1 @@
+{"ok":false,"error":{"code":"window_not_focused","message":"window_not_focused: keyboard input requires the target window to be focused; restoreWindow was requested but the target window is still not focused; bring it forward manually or check desktop permissions"}}

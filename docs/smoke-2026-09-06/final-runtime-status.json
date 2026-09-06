@@ -1,0 +1,14 @@
+{
+  "VerifiedAt": "2026-09-06T11:41:11.9097601+09:00",
+  "ServerPid": 25628,
+  "ServerSession": 1,
+  "TaskState": "Running",
+  "TaskLogonType": "Interactive",
+  "TaskRunLevel": "Limited",
+  "AutomaticTriggers": 0,
+  "TemporaryTaskExists": false,
+  "StagingExists": false,
+  "TemporaryStateFiles": 0,
+  "PowerShellPolicyMachine": "AllSigned",
+  "PowerShellPolicyUser": "RemoteSigned"
+}

@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { parseCli } from '../src/arguments.mjs';
+import { startDesktop, requestDesktop } from '../src/desktop.mjs';
+import { sshInvocation } from '../src/ssh.mjs';
+import { sendRequest } from '../src/transport.mjs';
+
+const help = `windows-use — standalone Windows UI Automation (Node.js 22+)
+
+Commands: serve, capabilities, apps, windows, snapshot, click, invoke, set-value,
+          type-text, press-key, hotkey, paste-text, scroll, drag
+
+Start in a Windows desktop terminal: windows-use serve (keep it running)
+Local Windows: windows-use apps
+From Mac/Orca: windows-use apps --host <SSH-alias>
+Remote install defaults to %USERPROFILE%/.windows-use/app.
+Override with --remote-dir <Windows-path>.
+
+Observe: windows-use snapshot --app Notepad --session my-task [--screenshot image.png]
+Act:     windows-use set-value --app Notepad --session my-task \\
+           --observation <latest-session.observation> --element 4 --value "text"
+
+--host <alias>                    Run against the installed remote Windows package
+--session <task-id>               Isolate observed elements for this task
+--observation <token>             Required for actions; use the latest snapshot token
+--window-id <id> | --window-index <index>
+--restore-window                 Explicitly permit restoring/focusing the target
+--element <index>                 Accessibility element from the latest snapshot
+--action <name>                   Accessible secondary action (invoke)
+--text <text> | --text-file <file> Text for typing/pasting; files avoid argv exposure
+--value <text> | --value-file <file>
+--key <key>                       Key or hotkey, e.g. Enter or Ctrl+s
+--allow-pointer                  Permit coordinate/fallback pointer input only when authorized
+--screenshot <local-file>         Save PNG locally; images are omitted by default
+--json                           Results are always JSON
+Snapshots expire after two minutes. Re-observe after errors or another task's input.
+`;
+
+async function readStdin() {
+  const chunks = []; let length = 0;
+  for await (const chunk of process.stdin) {
+    length += chunk.length;
+    if (length > 2 * 1024 * 1024) throw new Error('Request exceeds 2 MiB');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+try {
+  const options = parseCli(process.argv.slice(2));
+  if (options.version) process.stdout.write('0.1.0\n');
+  else if (options.help) process.stdout.write(help);
+  else if (options.request.command === 'serve') {
+    if (process.platform !== 'win32' || options.host) throw new Error('Run serve directly in the interactive Windows desktop session.');
+    const desktop = await startDesktop();
+    let closing = false;
+    const close = async () => { if (closing) return; closing = true; await desktop.close(); };
+    process.once('SIGINT', close); process.once('SIGTERM', close);
+    process.stdout.write(`${JSON.stringify({ ok: true, mode: 'desktop-server', transport: 'named-pipe' })}\n`);
+  } else {
+    let request = options.request;
+    const rpc = request.command === 'rpc';
+    if (rpc) request = JSON.parse(await readStdin());
+    else {
+      for (const [source, field] of [[options.textFile, 'text'], [options.valueFile, 'value']]) {
+        if (source) {
+          if (request.params[field] !== undefined) throw new Error(`Use --${field} or --${field}-file, not both.`);
+          request.params[field] = await readFile(source, 'utf8');
+        }
+      }
+    }
+    let result = !rpc && options.host
+      ? await sendRequest(sshInvocation(options.host, options.remoteDir), request)
+      : await requestDesktop(request);
+    if (!rpc && options.screenshot) {
+      if (!result.screenshot?.data) throw new Error(result.screenshotStatus?.message ?? 'Screenshot was not captured');
+      const path = resolve(options.screenshot);
+      await writeFile(path, Buffer.from(result.screenshot.data, 'base64'), { flag: 'wx', mode: 0o600 });
+      const { data, ...metadata } = result.screenshot;
+      result = { ...result, screenshot: { ...metadata, path } };
+    }
+    process.stdout.write(`${JSON.stringify({ ok: true, result })}\n`);
+  }
+} catch (error) {
+  process.stdout.write(`${JSON.stringify({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message } })}\n`);
+  process.exitCode = 1;
+}

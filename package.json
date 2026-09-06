@@ -1,0 +1,16 @@
+{
+  "name": "@psh4607/windows-use",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Windows UI Automation CLI extracted from Orca",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "bin": { "windows-use": "bin/windows-use.mjs" },
+  "files": ["bin", "src", "dist", "native", "skills", "LICENSE", "NOTICE.md", "README.md", "provenance.json"],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": { "esbuild": "0.25.12" }
+}
