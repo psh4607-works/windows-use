@@ -129,6 +129,7 @@ export class DesktopScriptProviderClient {
     const response = await this.callBridge({
       tool: 'get_app_state',
       app,
+      accessibility: optionalStringParam(params, 'accessibility'),
       windowId: optionalNumberParam(params, 'windowId'),
       windowIndex: optionalNumberParam(params, 'windowIndex'),
       noScreenshot: params.noScreenshot === true,
@@ -157,6 +158,7 @@ export class DesktopScriptProviderClient {
     const response = await this.callBridge({
       tool: bridgeTool(method),
       app,
+      accessibility: optionalStringParam(params, 'accessibility'),
       element,
       fromElement,
       toElement,

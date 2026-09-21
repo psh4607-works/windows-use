@@ -10,6 +10,7 @@
   "files": ["bin", "src", "dist", "native", "skills", "LICENSE", "NOTICE.md", "README.md", "provenance.json"],
   "scripts": {
     "test": "node --test test/*.test.mjs",
+    "test:native-isolated": "pwsh -NoProfile -File native/computer-use-windows/runtime-keyboard.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-windows.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-msaa-isolated.test.ps1",
     "build": "node scripts/build.mjs"
   },
   "devDependencies": { "esbuild": "0.25.12" }

@@ -92,13 +92,17 @@ export function desktopActionWindowTarget(
     return { windowId: explicitWindowId }
   }
   if (explicitWindowIndex !== undefined) {
-    return { windowIndex: explicitWindowIndex }
+    if (current?.windowId !== null && current?.windowId !== undefined) {
+      // Indexes follow enumeration order; input must follow the observed window.
+      return { windowId: current.windowId }
+    }
+    throw new RuntimeClientError('window_not_found', 'Take a fresh snapshot of this window index before acting')
   }
   if (current?.windowId !== null && current?.windowId !== undefined) {
     return { windowId: current.windowId }
   }
   if (current?.windowIndex !== null && current?.windowIndex !== undefined) {
-    return { windowIndex: current.windowIndex }
+    throw new RuntimeClientError('window_not_found', 'Take a fresh snapshot with a window handle before acting')
   }
   return {}
 }

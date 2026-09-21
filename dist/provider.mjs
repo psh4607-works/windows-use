@@ -77,13 +77,16 @@ function desktopActionWindowTarget(explicitWindowId, explicitWindowIndex, curren
     return { windowId: explicitWindowId };
   }
   if (explicitWindowIndex !== void 0) {
-    return { windowIndex: explicitWindowIndex };
+    if (current?.windowId !== null && current?.windowId !== void 0) {
+      return { windowId: current.windowId };
+    }
+    throw new RuntimeClientError("window_not_found", "Take a fresh snapshot of this window index before acting");
   }
   if (current?.windowId !== null && current?.windowId !== void 0) {
     return { windowId: current.windowId };
   }
   if (current?.windowIndex !== null && current?.windowIndex !== void 0) {
-    return { windowIndex: current.windowIndex };
+    throw new RuntimeClientError("window_not_found", "Take a fresh snapshot with a window handle before acting");
   }
   return {};
 }
@@ -1461,6 +1464,7 @@ var DesktopScriptProviderClient = class {
     const response = await this.callBridge({
       tool: "get_app_state",
       app,
+      accessibility: optionalStringParam(params, "accessibility"),
       windowId: optionalNumberParam(params, "windowId"),
       windowIndex: optionalNumberParam(params, "windowIndex"),
       noScreenshot: params.noScreenshot === true,
@@ -1485,6 +1489,7 @@ var DesktopScriptProviderClient = class {
     const response = await this.callBridge({
       tool: bridgeTool(method),
       app,
+      accessibility: optionalStringParam(params, "accessibility"),
       element,
       fromElement,
       toElement,

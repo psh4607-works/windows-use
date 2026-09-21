@@ -5,6 +5,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { executeRequest } from '../src/request.mjs';
 
+test('actions inherit the observed accessibility backend and reject switching it', async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), 'windows-use-backend-'));
+  const calls = [];
+  const providerFactory = () => ({ snapshots: new Map(),
+    async snapshot(params) { calls.push(params.accessibility); return { snapshot: { id: 'observed' } }; },
+    async action(method, params) { calls.push(params.accessibility); return { snapshot: { id: 'changed' } }; }, shutdown() {}
+  });
+  try {
+    const observed = await executeRequest({ command: 'snapshot', session: 'a', params: { app: 'fixture', accessibility: 'msaa' } }, { stateDir, providerFactory });
+    const request = { command: 'press-key', session: 'a', observation: observed.session.observation, params: { app: 'fixture', key: 'F10' } };
+    await assert.rejects(executeRequest({ ...request, params: { ...request.params, accessibility: 'uia' } }, { stateDir, providerFactory }), /accessibility.*changed/i);
+    await executeRequest(request, { stateDir, providerFactory });
+    assert.deepEqual(calls, ['msaa', 'msaa']);
+  } finally { await rm(stateDir, { recursive: true, force: true }); }
+});
+
 test('separate CLI invocations preserve the observed element identity within one session', async () => {
   const stateDir = await mkdtemp(join(tmpdir(), 'windows-use-test-'));
   const calls = [];

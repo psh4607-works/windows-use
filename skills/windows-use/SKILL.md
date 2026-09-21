@@ -29,6 +29,12 @@ windows-use press-key --app Notepad --session edit-note --observation <new-token
 
 Prefer `set-value` for editable controls and `click`/`invoke` for accessibility actions. `click` uses Invoke/Select/Toggle by default and refuses pointer fallback. `invoke --action` must use an action exposed by the observed element. Keyboard input requires the intended window to have focus; `--restore-window` explicitly permits restoring/focusing it.
 
+If UIA omits internal controls, compare a fresh snapshot with `--accessibility msaa`.
+Actions inherit the observed backend; do not mix backend identities. MSAA action
+dispatch alone is not proof the app reacted. F1-F16 and `Shift+F10` are supported.
+After opening a menu or dialog, re-list `windows`, select the newly observed HWND,
+and take a fresh snapshot before acting. Window indexes can change with z-order.
+
 Window focus does not prove that the intended text field has keyboard focus.
 Keyboard commands do not focus an input merely because `--element` is supplied.
 After a button invocation, re-establish text-field focus before typing, and verify

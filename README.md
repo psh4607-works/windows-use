@@ -98,6 +98,57 @@ windows-use set-value --host <existing-SSH-alias> --app Notepad --session task-a
 
 ## 검증 범위
 
+### MSAA와 팝업 창
+
+UIA 스냅샷에 앱 내부 항목이 빠지면 `--accessibility msaa`로 MSAA 트리를 명시적으로
+조회할 수 있습니다. 이후 액션은 같은 관찰의 백엔드를 상속하며, 다른 백엔드로 바꾸려면
+새 스냅샷이 필요합니다. MSAA도 본문을 노출하지 않는 터미널은 스크린샷으로 확인해야 합니다.
+
+```sh
+windows-use windows --host <SSH-alias> --app <pid>
+windows-use snapshot --host <SSH-alias> --app <pid> --window-id <HWND> \
+  --accessibility msaa --session inspect-app
+windows-use hotkey --host <SSH-alias> --app <pid> --session inspect-app \
+  --observation <token> --key Shift+F10 --restore-window
+```
+
+`windows`는 해당 프로세스의 보이는 최상위 창과 소유 팝업을 열거합니다. 기본 스냅샷은
+그 프로세스에 속한 전경 창을 우선하며, 창 ID를 지정하면 해당 창만 대상으로 합니다.
+메뉴나 대화상자가 열린 뒤에는 창 목록과 스냅샷을 다시 읽으세요. 오래된 ID, 다른 프로세스의
+ID, 이름·역할이 달라진 MSAA 요소는 입력 전에 거절합니다. 창 인덱스로 관찰한 뒤에도
+액션은 관찰한 HWND로 고정되며, 창이 닫히면 다른 창으로 입력을 넘기지 않고 거절합니다.
+
+MSAA 요소는 `IAccIdentity`가 제공하는 네이티브 식별자로 다시 찾습니다. 형제 순서가
+바뀌어도 같은 요소를 유지하며, 삭제되었거나 식별자가 중복된 요소는 거절합니다.
+식별자를 제공하지 않는 요소도 조회할 수 있지만 접근성 액션은 제공하지 않습니다.
+기본 액션·이름·값·위치 같은 선택 속성이 미지원이어도 자식 트리는 계속 조회합니다.
+
+F1–F16과 `Shift+F10`을 지원합니다. MSAA 메서드가 성공해도 앱이 실제로 반응했는지는
+새 스냅샷으로 검증해야 합니다. 비밀번호로 표시된 MSAA 컨트롤의 이름과 값은 가립니다.
+보호 플래그가 없어도 이름·역할·설명·도움말에서 비밀번호, PIN, 인증 코드 등의 민감 필드
+표시가 확인되면 값을 조회하지 않고 `[redacted]`로 표시합니다. 정수 역할과 문자열 사용자
+정의 역할을 구분하며, 사용자 정의 역할이 있어도 자식과 형제 탐색을 계속합니다.
+
+Windows 회귀 테스트:
+
+```powershell
+& .\native\computer-use-windows\runtime-keyboard.test.ps1
+& .\native\computer-use-windows\runtime-windows.test.ps1
+& .\native\computer-use-windows\runtime-msaa.test.ps1
+& .\native\computer-use-windows\runtime-render.test.ps1
+```
+
+MSAA 테스트는 임시 WinForms 창을 만들고 닫습니다. 운영 앱을 대상으로 하지 않습니다.
+
+PowerShell 7이 설치된 Mac/Linux에서도 격리 테스트를 실행할 수 있습니다.
+
+```sh
+npm run test:native-isolated
+```
+
+MSAA 격리 테스트는 실제 탐색·식별·액션 코드의 oleacc 호출 경계만 fixture로 대체합니다.
+COM 마샬링과 실제 Windows UI 연동은 위의 Windows 회귀 테스트로 별도 확인해야 합니다.
+
 로컬 테스트는 독립 CLI, SSH 인자/Unicode 전송, 인증된 IPC, 세션 격리, 원본 provider의
 요소 ID 전달과 값 검증을 확인합니다. 실제 Windows UI와 키보드·포커스 동작은 Windows의
 로그인된 데스크톱에서 별도로 검증해야 합니다. 기본 확인은 `serve` 실행 후 `apps`,

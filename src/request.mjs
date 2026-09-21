@@ -20,6 +20,7 @@ export async function executeRequest(request, {
 } = {}) {
   if (!request || !COMMANDS.includes(request.command)) throw new Error('Unknown command');
   const params = { noScreenshot: true, ...request.params };
+  if (params.accessibility !== undefined && !['uia', 'msaa'].includes(params.accessibility)) throw new Error('Invalid accessibility backend');
   if (['capabilities', 'apps', 'windows'].includes(request.command)) {
     const provider = providerFactory();
     try {
@@ -48,8 +49,12 @@ export async function executeRequest(request, {
       if (saved.expiresAt <= now()) throw new Error('Snapshot expired; take a fresh snapshot.');
       if (!request.observation || request.observation !== saved.observation) throw new Error('Observation changed or is missing; use the latest observation token.');
       if (params.app !== saved.app) throw new Error('Snapshot belongs to a different app; take a fresh snapshot.');
+      const observedAccessibility = saved.accessibility ?? 'uia';
+      if (params.accessibility !== undefined && params.accessibility !== observedAccessibility) throw new Error('Accessibility backend changed; take a fresh snapshot.');
+      params.accessibility = observedAccessibility;
       for (const [key, snapshot] of saved.snapshots) provider.snapshots.set(key, snapshot);
     }
+    params.accessibility ??= 'uia';
     let method = ACTIONS[request.command];
     if (request.command === 'click' && params.allowPointer !== true) {
       if (params.clickCount > 1 || params.modifiers || (params.mouseButton && params.mouseButton !== 'left')) throw new Error('Modified pointer clicks require --allow-pointer.');
@@ -71,10 +76,10 @@ export async function executeRequest(request, {
     const snapshots = [...provider.snapshots].map(([key, snapshot]) => [key, { ...snapshot, screenshotPngBase64: null }]);
     const temporary = `${statePath}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temporary, JSON.stringify({ app: params.app, observation, expiresAt, snapshots }), { mode: 0o600, flag: 'wx' });
+      await writeFile(temporary, JSON.stringify({ app: params.app, accessibility: params.accessibility, observation, expiresAt, snapshots }), { mode: 0o600, flag: 'wx' });
       await rename(temporary, statePath);
     } finally { await rm(temporary, { force: true }); }
-    return { ...result, session: { id: request.session, observation, expiresAt } };
+    return { ...result, session: { id: request.session, observation, expiresAt, accessibility: params.accessibility } };
   } finally {
     provider?.shutdown();
     await lock.close();

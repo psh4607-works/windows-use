@@ -25,12 +25,13 @@ Act:     windows-use set-value --app Notepad --session my-task \\
 --session <task-id>               Isolate observed elements for this task
 --observation <token>             Required for actions; use the latest snapshot token
 --window-id <id> | --window-index <index>
+--accessibility uia|msaa          Snapshot backend (default uia); actions inherit it
 --restore-window                 Explicitly permit restoring/focusing the target
 --element <index>                 Accessibility element from the latest snapshot
 --action <name>                   Accessible secondary action (invoke)
 --text <text> | --text-file <file> Text for typing/pasting; files avoid argv exposure
 --value <text> | --value-file <file>
---key <key>                       Key or hotkey, e.g. Enter or Ctrl+s
+--key <key>                       Key or hotkey, e.g. Enter, Shift+F10, F1-F16, Ctrl+s
 --allow-pointer                  Permit coordinate/fallback pointer input only when authorized
 --screenshot <local-file>         Save PNG locally; images are omitted by default
 --json                           Results are always JSON

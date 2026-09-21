@@ -170,9 +170,21 @@
   "localModifications": [
     {
       "path": "native/computer-use-windows/runtime.ps1",
-      "bytes": 57039,
-      "sha256": "cd890054a3faf671b00ff01fa0aa918a5245fbf0027a2941b21ebb944b8a7aa2",
-      "reason": "Bind PostMessageW explicitly to preserve Korean text and UTF-16 surrogate pairs during keyboard input."
+      "bytes": 63132,
+      "sha256": "6d91e3af523c996d651e4fd27d946d27daa7a58cd7c88bc657ba413d5f616931",
+      "reason": "Preserve Unicode via PostMessageW; support F1-F16, enumerate and validate owned popup windows, and provide explicitly selected MSAA observation and actions."
+    },
+    {
+      "path": "vendor/orca/src/main/computer/desktop-script-provider-client.ts",
+      "bytes": 10355,
+      "sha256": "623726f2074b22bcc0a2303522424ce0a72e863a5857abcc4f10b49548654822",
+      "reason": "Forward the explicitly selected accessibility backend to Windows snapshot and action requests."
+    },
+    {
+      "path": "vendor/orca/src/main/computer/desktop-script-action.ts",
+      "bytes": 7366,
+      "sha256": "bbadbd209796726a840dbda7a6aac4dfb3c2b050fe1972a2b4a6696645a5d258",
+      "reason": "Pin indexed actions to the observed HWND and reject indexed actions without an observed handle."
     }
   ]
 }

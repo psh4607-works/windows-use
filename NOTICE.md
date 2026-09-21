@@ -13,6 +13,11 @@ The standalone Windows runtime explicitly binds `PostMessageW` so Unicode keyboa
 text is not converted through the ANSI message entry point. This correction was
 verified with Korean text and a surrogate-pair emoji in a live WPF text box.
 
+Additional standalone changes support F1-F16 input, enumerate visible process-owned
+windows (including menus and dialogs), and pass an explicitly selected MSAA backend
+through the provider. `native/computer-use-windows/msaa.cs` is a standalone adapter;
+it was not extracted from the upstream revision. UIA remains the default backend.
+
 The CLI, task session persistence, authenticated desktop IPC and SSH transport are
 standalone adapters. Electron, the renderer, terminal subsystem, relay server,
 mobile app and upstream GitHub Actions workflows are not required at runtime.

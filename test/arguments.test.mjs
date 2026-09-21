@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { parseCli } from '../src/arguments.mjs';
 import { sshInvocation } from '../src/ssh.mjs';
 
+test('CLI selects a named accessibility backend and rejects unknown backends', () => {
+  assert.equal(parseCli(['snapshot', '--accessibility', 'msaa']).request.params.accessibility, 'msaa');
+  assert.equal(parseCli(['snapshot', '--accessibility', 'uia']).request.params.accessibility, 'uia');
+  assert.throws(() => parseCli(['snapshot', '--accessibility', 'typo']), /accessibility/i);
+});
+
 test('CLI preserves text as data and translates element and window options', () => {
   const parsed = parseCli(['set-value', '--host', 'windows-pc', '--session', 'task-a', '--observation', 'abc', '--app', 'Notepad', '--element', '4', '--window-id', '1234', '--value', '$HOME `x` 한국어', '--json']);
   assert.deepEqual(parsed.request, { command: 'set-value', session: 'task-a', observation: 'abc', params: { app: 'Notepad', elementIndex: 4, windowId: 1234, value: '$HOME `x` 한국어', noScreenshot: true } });
