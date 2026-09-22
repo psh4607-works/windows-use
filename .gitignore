@@ -5,3 +5,17 @@ release/
 .cache/
 windows/**/bin/
 windows/**/obj/
+
+# Local connection state and credentials must not enter the distributable source.
+.windows-use/
+server.json
+settings.json
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.p12
+id_rsa
+id_ecdsa
+id_ed25519

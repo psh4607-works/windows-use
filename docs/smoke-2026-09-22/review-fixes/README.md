@@ -1,5 +1,6 @@
-<!-- Environment identifiers in this historical record were anonymized for publication on 2026-09-22. -->
 # PR #3 리뷰 수정 검증
+
+공개용 기록의 `windows-pc`는 실제 SSH 별칭을 대체한 가상 이름이다.
 
 ## 1차 수정본
 

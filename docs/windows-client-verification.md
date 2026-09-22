@@ -1,7 +1,10 @@
-<!-- Environment identifiers in this historical record were anonymized for publication on 2026-09-22. -->
 # Windows client 0.2.0 verification
 
 2026-09-22. 구현 브랜치: `feat/windows-installer`.
+
+이 문서와 연결된 검증 자료는 공개용으로 정리했다. SSH 별칭·PC 이름·계정·세션 이름은
+가상 예시이며, 실제 연결 설정이 찍힌 화면은 제외했다. `windows-pc`를 사용할 때는
+자신의 기존 SSH 별칭으로 바꾼다. 정리 과정에서 Windows 검증을 다시 실행하지 않았다.
 
 추가 검증에서 배포 EXE를 그대로 다시 설치하고 트레이 메뉴의 상태 표시·일시 중지·재개·종료까지
 직접 확인했다. 자세한 결과와 캡처는 [최종 설치 파일 재검증](smoke-2026-09-22/final-recheck/README.md)을 참고한다.
@@ -31,8 +34,9 @@
 문제를 발견했다. 호스트 이름에 Unicode 문자·숫자를 허용하도록 수정하고 회귀 테스트와
 수정된 설치본의 Windows smoke를 통과했다. 개행·공백·URL 입력은 계속 거절한다.
 
-저장소의 `docs/smoke-2026-09-22/`에 실제 UI smoke 결과, 설치 수명 주기 결과,
-SSH 조회 결과, 앱 자체 창의 `PrintWindow` 캡처를 보관했다. 개별 smoke JSON의
+저장소의 `docs/smoke-2026-09-22/`에 환경 식별 정보를 정리한 UI smoke 결과,
+설치 수명 주기 결과, SSH 조회 결과와 트레이 메뉴 캡처를 보관했다.
+실제 연결 설정이 찍힌 앱 자체 창의 캡처는 공개 자료에서 제외했다. 개별 smoke JSON의
 `unverified`는 해당 스크립트 단독으로 확인하지 않은 범위이며, 별도 설치·SSH 검증은
 위 결과를 따른다. 기존 수동 서버의 PID는 작업 중 바뀌었지만 이 테스트에서는 해당
 서버의 파일·예약 작업을 수정하거나 재시작하지 않았다.

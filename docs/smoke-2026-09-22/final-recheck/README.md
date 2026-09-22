@@ -1,5 +1,6 @@
-<!-- Environment identifiers in this historical record were anonymized for publication on 2026-09-22. -->
 # 최종 설치 파일 재검증
+
+공개용 기록의 `windows-pc`는 실제 SSH 별칭을 대체한 가상 이름이다.
 
 2026-09-22, `windows-pc` Windows 11 x64 로그인 세션에서 사용자 요청으로 재검증했다.
 검증 대상은 이전에 전달한 `WindowsUse-Setup-0.2.0-x64.exe` 그 자체이며 SHA-256은
