@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Standalone Windows UI Automation CLI extracted from Orca",
+  "description": "Standalone Windows UI Automation CLI and skill for Codex and Claude Code",
   "license": "MIT",
   "engines": { "node": ">=22" },
   "bin": { "windows-use": "bin/windows-use.mjs" },

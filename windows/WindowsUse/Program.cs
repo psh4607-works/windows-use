@@ -58,7 +58,7 @@ namespace WindowsUse
             form.Controls.Add(layout);
             layout.Controls.Add(new Label { Text = "Windows Use", Font = new Font(form.Font.FontFamily, 21, FontStyle.Bold), AutoSize = true });
             layout.Controls.Add(status);
-            layout.Controls.Add(new Label { Text = "이 PC의 화면 조회와 입력을 Orca / Codex에 연결합니다.", AutoSize = true, Margin = new Padding(0, 0, 0, 14) });
+            layout.Controls.Add(new Label { Text = "Codex / Claude Code에서 이 PC의 화면을 조회하고 조작합니다.", AutoSize = true, Margin = new Padding(0, 0, 0, 14) });
             var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
             actions.Controls.Add(pause); actions.Controls.Add(test);
             layout.Controls.Add(actions);

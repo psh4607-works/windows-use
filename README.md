@@ -1,11 +1,15 @@
 # windows-use
 
-Orca의 Windows Computer Use를 추출한 독립 CLI와 스킬입니다. Orca 에이전트의
-일반 셸 도구에서 호출할 수 있습니다. Windows 대상에는 Orca 앱이 필요하지 않습니다.
-`orca computer` 내장 명령을 교체하는 방식은 아닙니다.
+Codex와 Claude Code가 Windows 앱을 조회하고 조작할 수 있게 하는 독립 CLI와
+에이전트 스킬입니다. 접근성 트리로 창과 컨트롤을 읽고, 클릭·텍스트 입력·단축키를
+실행한 뒤 결과를 JSON으로 돌려줍니다.
+
+에이전트는 자신의 셸 도구로 `windows-use`를 실행합니다. 별도 에이전트 전용 앱이나
+MCP 서버에 연결할 필요가 없으며, 일반 터미널에서도 같은 명령을 사용할 수 있습니다.
+Windows에서 직접 실행하거나, Mac/Linux에서 기존 SSH 연결로 Windows PC를 제어합니다.
 
 ```text
-Orca / Codex / terminal
+Codex / Claude Code / terminal
         ↓ windows-use --host <SSH alias>
 existing SSH connection → Windows CLI + bundled Node (JSON stdin)
         ↓ authenticated local named pipe
@@ -14,50 +18,55 @@ Windows Use tray client (logged-in Windows desktop)
 PowerShell UI Automation + focus helper
 ```
 
-## 구성과 비용
+## 실행 환경
 
-- 호출 PC 요구 사항: Node.js 22 이상. CLI의 런타임 npm 의존성 0개.
+- Mac/Linux 호출 PC: Node.js 22 이상, npm, SSH 클라이언트. CLI의 런타임 npm 의존성은 없습니다.
+- 에이전트는 CLI가 설치된 로컬 환경에서 셸 명령을 실행할 수 있어야 합니다. 웹 채팅에 스킬 파일만 올리는 것으로 로컬 Windows에 연결되지는 않습니다.
 - Mac/Linux는 SSH 호출 측으로 지원합니다. 데스크톱 서버와 트레이 host는 실행 진입점에서 Windows만 허용합니다. 내부 테스트의 Unix socket은 제품의 Mac/Linux 데스크톱 지원을 의미하지 않습니다.
 - Windows 설치 파일은 Node.js 24.21.0을 포함합니다. Windows PC에 Node.js를 별도로 설치할 필요가 없습니다.
 - 설치 대상: x64 Windows 10/11, .NET Framework 4.8 이상(최신 Windows 기본 구성 요소). ARM64 설치 파일은 아직 제공하지 않습니다.
-- Windows 스크립트와 필요한 제어 모듈만 포함합니다. 소스 출처는 `provenance.json`.
-- 전체 Orca 빌드, Electron, upstream E2E, 예약 Actions를 포함하지 않습니다.
+- Windows PC에는 로그인된 데스크톱에서 실행 중인 Windows Use 클라이언트가 필요합니다. 원격 제어 시에는 같은 Windows 사용자로 접속할 수 있는 SSH 연결도 필요합니다.
+- Windows PC에 Codex나 Claude Code를 설치할 필요는 없습니다. 에이전트가 Windows에서 직접 실행되는 경우에는 아래의 로컬 사용 방식을 따르세요.
 - 이 저장소에는 GitHub Actions 워크플로가 없습니다. 테스트·빌드는 수동으로 실행합니다.
-- GitHub의 무료 3,000분은 실행 시간 한도입니다. 저장공간과는 별도입니다.
 
-## 로컬 개발 및 배포 패키지
+## 1. 호출 PC에 CLI 설치
+
+Mac/Linux에서 저장소를 내려받아 패키지를 만듭니다. 아래 예시는 소스에서 설치하는
+방식이며, npm 레지스트리에 게시된 패키지를 전제로 하지 않습니다.
 
 ```sh
+git clone https://github.com/psh4607/windows-use.git
+cd windows-use
 npm ci
 npm run build
-npm test
 npm pack
-```
-
-`npm pack` 결과에는 실행 파일, 생성된 provider, Windows 스크립트, 스킬과 라이선스만
-포함됩니다. 설치 PC에서 Orca 소스나 개발 의존성을 설치할 필요가 없습니다.
-
-Mac/Linux에서 CLI 등록:
-
-```sh
-npm install --global /path/to/psh4607-windows-use-0.2.0.tgz
+npm install --global ./psh4607-windows-use-0.2.0.tgz
 windows-use --help
 ```
 
-## Windows 설치
+`npm pack` 결과에는 실행 파일, 생성된 provider, Windows 스크립트, 스킬, 문서와
+라이선스가 포함됩니다. 에이전트가 사용하는 셸에서도 `windows-use --help`가 실행되는지
+확인하세요. 전역 설치 대신 저장소의 CLI를 직접 실행할 수도 있습니다.
+
+```sh
+node ./bin/windows-use.mjs --help
+```
+
+직접 실행하는 경우에는 에이전트에 CLI 파일의 절대 경로를 알려주세요. 스킬 설치
+명령은 아래에서도 이 저장소의 루트 디렉터리를 기준으로 합니다.
+
+## 2. Windows PC 준비
+
+설치 파일이 없다면 아래의 **Windows 설치 파일 빌드** 절차로 생성한 EXE를
+대상 Windows PC에 복사하세요. Node.js가 이미 설치된 PC에서는 **수동 설치**도 가능합니다.
 
 1. 로그인된 Windows 데스크톱에서 `WindowsUse-Setup-0.2.0-x64.exe`를 실행합니다.
 2. 기본 선택된 **Windows 로그인 시 자동 시작**을 유지하고 설치합니다. 관리자 권한을 요구하지 않습니다.
 3. 설치 완료 후 **Windows Use 시작**을 선택합니다. 이후에는 시작 메뉴 또는 트레이 아이콘에서 엽니다.
 4. 연결 설정에 기존 SSH 연결 이름, Windows 접속 주소·사용자·포트를 입력하고 저장합니다.
-5. **연결 테스트**로 데스크톱 접근과 로컬 SSH 응답을 확인합니다. 다른 PC에서의 실제 인증·통신은 아래 명령으로 별도 확인합니다.
+5. **연결 테스트**로 데스크톱 접근과 로컬 SSH 응답을 확인합니다. 다른 PC에서의 실제 인증·통신은 아래 **3. 연결 확인과 CLI 사용**의 `doctor` 명령으로 별도 확인합니다.
 
-```sh
-windows-use doctor --host <existing-SSH-alias>
-windows-use apps --host <existing-SSH-alias>
-```
-
-- 설치 위치는 `%LOCALAPPDATA%\Programs\WindowsUse`입니다. Windows PC에 Orca/Codex나 npm은 필요하지 않습니다.
+- 설치 위치는 `%LOCALAPPDATA%\Programs\WindowsUse`입니다. 설치 파일에 실행 환경이 포함되므로 대상 PC에 npm을 설치할 필요가 없습니다.
 - 트레이 메뉴: 실행 상태, 연결 설정, 연결 테스트, 일시 중지/재개, 종료. 설정 창의 닫기 버튼은 트레이로 숨깁니다.
 - 일시 중지는 화면 조회와 입력을 거절하며 이미 시작된 작업은 마무리합니다. 재개하면 새 snapshot이 필요합니다. 중지 상태는 종료·로그인 후에도 유지됩니다.
 - 일시 중지 상태를 디스크에 저장하지 못해도 현재 접근은 차단하며 저장 실패를 표시합니다. 이 경우 재시작 후에는 이전 저장 상태로 돌아갈 수 있으므로 저장 장치·권한 문제를 해결하고 일시 중지를 다시 저장하세요.
@@ -84,7 +93,7 @@ npm run package:windows
 
 `release/WindowsUse-Setup-0.2.0-x64.exe`와 SHA-256 파일이 생성됩니다. Node Windows ZIP은 버전·SHA-256을 고정하고 다운로드 및 캐시 재사용 시 검증합니다. 런타임 라이선스와 파일별 해시를 설치 파일에 포함합니다.
 
-### 기존 수동 설치
+### 수동 설치
 
 Node.js 22 이상이 있는 Windows PC에 배포 파일을 복사한 다음, **로그인된 Windows
 데스크톱의 터미널**에서 실행합니다. 기존 파일이 있는 설치 경로는 먼저 확인하세요.
@@ -96,7 +105,7 @@ tar -xzf .\psh4607-windows-use-0.2.0.tgz -C $installDir --strip-components=1
 node (Join-Path $installDir 'bin/windows-use.mjs') serve
 ```
 
-마지막 프로세스를 계속 실행해 둡니다. Windows의 Orca 터미널에서도 시작할 수 있습니다.
+마지막 프로세스를 로그인된 Windows 데스크톱의 터미널에서 계속 실행해 둡니다.
 Ctrl+C로 종료합니다. 이 수동 설치 방식은 시작 프로그램이나 Windows 서비스를 등록하지 않습니다.
 SSH에서 `serve`를 시작하면 대화형 데스크톱을 사용할 수 있다는 보장이 없습니다.
 
@@ -104,22 +113,110 @@ SSH에서 `serve`를 시작하면 대화형 데스크톱을 사용할 수 있다
 뒤에 아래 명령을 붙이거나 패키지를 `npm install --global`로 등록하세요. 원격 호출의
 `--remote-dir`에는 실제 설치 루트(그 안에 `bin/windows-use.mjs`가 있는 경로)를 지정합니다.
 
-## Mac의 Orca에서 호출
+## 3. 연결 확인과 CLI 사용
+
+아래의 `windows-pc`는 예시입니다. 호출 PC의 SSH 설정에 등록되어 있고 실제로 접속되는
+별칭으로 바꾸세요. Windows Use는 SSH 서버나 접속 자격증명을 대신 설정하지 않습니다.
 
 ```sh
-windows-use apps --host <existing-SSH-alias>
-windows-use snapshot --host <existing-SSH-alias> --app Notepad --session task-a
-windows-use set-value --host <existing-SSH-alias> --app Notepad --session task-a \
-  --observation <result.session.observation> --element 4 --value 'hello'
+windows-use doctor --host windows-pc
+windows-use apps --host windows-pc
+windows-use snapshot --host windows-pc --app Notepad --session task-a
 ```
+
+대상 Windows에서 메모장 등 테스트 앱을 먼저 열어 두세요. `apps` 결과의 앱 이름이나
+PID를 `--app`에 넣습니다. `snapshot` 응답의 `result.snapshot.treeText`에서 입력할
+요소 번호를, `result.session.observation`에서 관찰 토큰을 확인합니다.
+
+다음 예시의 `OBSERVATION_TOKEN`과 `4`는 방금 받은 실제 토큰과 입력칸 번호로 바꿔야 합니다.
+`--host`, `--app`, `--session`은 관찰할 때와 동일하게 유지하세요.
+
+```sh
+windows-use set-value --host windows-pc --app Notepad --session task-a \
+  --observation 'OBSERVATION_TOKEN' --element 4 --value 'hello'
+```
+
+입력 후 반환된 스냅샷과 `result.action.verification`으로 실제 변경을 확인합니다.
+다음 액션은 그 응답의 새 관찰 토큰을 사용합니다.
 
 `--remote-dir`를 생략하면 새 설치 경로를 먼저 찾고 기존 `%USERPROFILE%/.windows-use/app`을 확인합니다. 새 설치에서는 번들 Node를 사용합니다. SSH는 기존 인증을
 사용하며 새 자격증명을 만들거나 host key 검증을 끄지 않습니다. Windows 데스크톱
 서버와 SSH 사용자는 동일한 Windows 계정을 사용해야 합니다.
 
-`skills/windows-use`를 `~/.codex/skills/windows-use` 또는 `~/.agents/skills/windows-use`에
-설치하면 해당 스킬 경로를 읽는 Orca 에이전트가 사용할 수 있습니다. 새 에이전트 세션에서
-`$windows-use`를 선택하거나 SKILL.md 경로를 직접 전달하세요.
+### Windows에서 로컬로 사용
+
+Windows 설치 파일에는 `windows-use.cmd`도 포함됩니다. PowerShell에서 다음처럼
+호출할 수 있으며, 로컬 제어에는 SSH나 별도 Node.js 설치가 필요하지 않습니다.
+
+```powershell
+$windowsUse = Join-Path $env:LOCALAPPDATA 'Programs\WindowsUse\windows-use.cmd'
+& $windowsUse doctor
+& $windowsUse apps
+& $windowsUse snapshot --app Notepad --session task-a
+```
+
+Windows에서 실행하는 에이전트에도 이 명령 경로를 알려주고 `--host`를 생략하도록
+지시하세요. CLI는 Windows Use 클라이언트와 같은 Windows 사용자로 실행해야 합니다.
+
+## 4. Codex에서 사용
+
+저장소 루트에서 스킬 폴더를 사용자 스킬 경로로 복사합니다. 이미 같은 이름의 스킬이
+있다면 먼저 내용을 확인하고, 유지할 수정 사항을 보존한 뒤 갱신하세요.
+
+```sh
+mkdir -p ~/.agents/skills
+cp -R skills/windows-use ~/.agents/skills/
+```
+
+Windows PowerShell에서는 다음 명령을 사용합니다.
+
+```powershell
+New-Item -ItemType Directory -Force "$HOME/.agents/skills" | Out-Null
+Copy-Item -Recurse ./skills/windows-use "$HOME/.agents/skills/"
+```
+
+로컬 Codex 세션에서 `$windows-use`를 지정하고 대상과 작업을 알려주세요.
+스킬이 보이지 않으면 세션을 다시 시작하세요.
+
+```text
+$windows-use
+windows-pc에 연결해서 실행 중인 앱을 조회해 줘.
+메모장 창을 찾으면 스냅샷으로 입력칸을 확인하고 "hello"를 입력한 뒤 결과를 확인해 줘.
+```
+
+프로젝트에만 적용하려면 `skills/windows-use`를 프로젝트의 `.agents/skills/windows-use/`로
+복사할 수 있습니다. 경로와 검색 범위는 [Codex 스킬 문서](https://learn.chatgpt.com/docs/build-skills)를 참고하세요.
+
+## 5. Claude Code에서 사용
+
+같은 스킬 폴더를 Claude Code의 사용자 스킬 경로로 복사합니다. 기존 설치가 있으면
+위와 같이 내용을 확인한 뒤 갱신하세요.
+
+```sh
+mkdir -p ~/.claude/skills
+cp -R skills/windows-use ~/.claude/skills/
+```
+
+Windows PowerShell에서는 다음 명령을 사용합니다.
+
+```powershell
+New-Item -ItemType Directory -Force "$HOME/.claude/skills" | Out-Null
+Copy-Item -Recurse ./skills/windows-use "$HOME/.claude/skills/"
+```
+
+로컬 Claude Code 세션에서 다음과 같이 요청하세요.
+
+```text
+/windows-use windows-pc의 실행 중인 앱을 조회하고, 메모장 입력칸에 "hello"를 입력한 뒤 결과를 확인해 줘.
+```
+
+프로젝트에만 적용하려면 `.claude/skills/windows-use/`에 복사할 수 있습니다.
+스킬이 보이지 않으면 세션을 다시 시작하세요. 자세한 규칙은
+[Claude Code 스킬 문서](https://code.claude.com/docs/en/skills)를 참고하세요.
+
+두 에이전트 모두 동일한 CLI와 스킬을 사용합니다. 스킬은 명령 사용법을 전달하며,
+CLI 설치·Windows 클라이언트 실행·SSH 연결을 대신하지 않습니다. 에이전트의 기존
+셸·네트워크 권한 설정이 적용됩니다.
 
 ## 동작 규칙
 
@@ -146,13 +243,14 @@ windows-use set-value --host <existing-SSH-alias> --app Notepad --session task-a
 UIA 스냅샷에 앱 내부 항목이 빠지면 `--accessibility msaa`로 MSAA 트리를 명시적으로
 조회할 수 있습니다. 이후 액션은 같은 관찰의 백엔드를 상속하며, 다른 백엔드로 바꾸려면
 새 스냅샷이 필요합니다. MSAA도 본문을 노출하지 않는 터미널은 스크린샷으로 확인해야 합니다.
+아래 예시의 호스트, `APP_PID`, `WINDOW_ID`, `OBSERVATION_TOKEN`은 실제 조회 결과로 바꾸세요.
 
 ```sh
-windows-use windows --host <SSH-alias> --app <pid>
-windows-use snapshot --host <SSH-alias> --app <pid> --window-id <HWND> \
+windows-use windows --host windows-pc --app 'APP_PID'
+windows-use snapshot --host windows-pc --app 'APP_PID' --window-id 'WINDOW_ID' \
   --accessibility msaa --session inspect-app
-windows-use hotkey --host <SSH-alias> --app <pid> --session inspect-app \
-  --observation <token> --key Shift+F10 --restore-window
+windows-use hotkey --host windows-pc --app 'APP_PID' --session inspect-app \
+  --observation 'OBSERVATION_TOKEN' --key Shift+F10 --restore-window
 ```
 
 `windows`는 해당 프로세스의 보이는 최상위 창과 소유 팝업을 열거합니다. 기본 스냅샷은
@@ -205,6 +303,9 @@ COM 마샬링과 실제 Windows UI 연동은 위의 Windows 회귀 테스트로 
 공유하는 예시에는 가상 SSH 별칭·PC 이름·계정을 사용하고, 검증 자료에서 값을 바꿨다면
 익명화 사실을 표시하세요. 실제 연결 설정 화면, 로컬 상태 파일, 인증정보는 저장소나 패키지에 포함하지 않습니다.
 
-Orca 업데이트와 독립적으로 버전을 관리합니다. 원본 모듈을 갱신할 때는 고정된 커밋에서
-동일한 파일 목록을 추출하고 `provenance.json`을 갱신한 뒤 빌드·테스트·Windows 검증을 실행하세요.
-원본 저장소의 전체 워크플로를 복사하지 않습니다.
+패키지를 갱신하면 CLI와 에이전트에 복사한 스킬도 함께 갱신하세요. 변경 검증에는
+`npm run build`, `npm test`, `npm run test:bridge`를 사용합니다. Windows 실행에 영향을
+주는 변경은 로그인된 Windows 데스크톱에서 별도로 확인하세요.
+
+이 프로젝트는 MIT 라이선스로 배포합니다. 라이선스와 포함된 코드의 출처는
+[LICENSE](LICENSE), [NOTICE.md](NOTICE.md), [provenance.json](provenance.json)에 기록합니다.
