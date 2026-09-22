@@ -1,0 +1,23 @@
+✔ pause rejects desktop requests while status remains readable and resume restores access (18.886ms)
+✔ managed restart reclaims a dead registration but never overwrites a live owner (50.8038ms)
+✔ a corrupt owner registration is preserved and reports how to recover safely (3.8306ms)
+✔ doctor verifies desktop enumeration and reports a paused desktop without attempting UI access (6.5367ms)
+✔ pause invalidates saved observations and a new desktop cannot reuse a previous owner observation (8.8784ms)
+✔ tray host persists pause, handles commands, and shuts down the broker on parent EOF (33.5112ms)
+✔ a failed pause save still revokes the real desktop and can be explicitly resumed (12.1507ms)
+✔ failed resume compensation preserves the original failure message (5.8528ms)
+✔ a new tray process honors a saved pause before accepting any desktop request (9.5116ms)
+✔ a failed resume never persists permission to run on the next launch (5.9089ms)
+✔ pause persists before applying and failed resume persistence rolls back access (5.9074ms)
+✔ Windows recovery excludes concurrent owners and releases its lock after a hard kill (110.3269ms)
+✔ connection settings round-trip without credentials and reject SSH directive injection (16.6012ms)
+✔ damaged and incompatible settings stay intact and name the recovery file and action (6.6059ms)
+✔ Korean Windows computer and account names are accepted without allowing SSH config injection (0.9638ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3203.7884

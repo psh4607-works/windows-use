@@ -17,6 +17,15 @@ test('CLI preserves text as data and translates element and window options', () 
   assert.throws(() => parseCli(['snapshot', '--unknown']), /unknown/i);
 });
 
+test('SSH discovers the installed client and uses its bundled Node without depending on PATH', () => {
+  const script = Buffer.from(sshInvocation('windows-pc').args.at(-1).split(' ').at(-1), 'base64').toString('utf16le');
+  assert.match(script, /LOCALAPPDATA/);
+  assert.match(script, /Programs[\\/]WindowsUse/);
+  assert.match(script, /runtime[\\/]node\.exe/);
+  assert.match(script, /Test-Path/);
+  assert.match(script, /\.windows-use\/app/);
+});
+
 test('SSH sends a fixed encoded launcher and never embeds UI text in the command', () => {
   const invocation = sshInvocation('windows-pc', "C:/Tools/User's Windows Use");
   assert.equal(invocation.program, 'ssh');

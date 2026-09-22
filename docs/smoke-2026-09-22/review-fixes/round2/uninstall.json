@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "uninstallExitCode": 0,
+  "clientRemoved": true,
+  "startupRemoved": true,
+  "uninstallRegistrationRemoved": true,
+  "testTaskRemoved": true,
+  "existingBrokerUnchanged": true
+}

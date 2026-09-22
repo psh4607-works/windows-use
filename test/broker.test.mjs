@@ -65,3 +65,28 @@ test('desktop registration is discovered by a separate caller and removed on shu
     await assert.rejects(requestDesktop({ command: 'apps' }, { directory }), /serve/i);
   } finally { await desktop?.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('broker prepares authorization when a request arrives so queued work can be revoked before execution', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-revoke-'));
+  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\wu-revoke-${randomUUID()}` : join(directory, 'socket');
+  const config = { endpoint, token: 'a'.repeat(64) };
+  let revision = 0, prepared = 0, release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  const broker = await startBroker({ ...config, handler: async () => blocked, prepare: request => {
+    prepared++;
+    const admitted = revision;
+    return async () => { if (admitted !== revision) throw new Error('revoked'); return request.id === 1 ? blocked : request.id; };
+  } });
+  let first, second;
+  try {
+    first = callBroker({ id: 1 }, config);
+    second = callBroker({ id: 2 }, config);
+    for (let i = 0; i < 50 && prepared < 2; i++) await new Promise(resolve => setTimeout(resolve, 2));
+    assert.equal(prepared, 2, 'authorize both requests at admission, before running queued work');
+    const rejected = assert.rejects(second, /revoked/);
+    revision++;
+    release('done');
+    await first;
+    await rejected;
+  } finally { release('done'); await Promise.allSettled([first, second]); await broker.close(); await rm(directory, { recursive: true, force: true }); }
+});

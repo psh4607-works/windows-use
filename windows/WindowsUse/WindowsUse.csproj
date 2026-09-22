@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion><AssemblyName>WindowsUse</AssemblyName>
+    <Version>0.2.0</Version><ApplicationManifest>app.manifest</ApplicationManifest>
+    <DebugType>none</DebugType><Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" /><Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" /><Reference Include="System.Security" />
+  </ItemGroup>
+</Project>

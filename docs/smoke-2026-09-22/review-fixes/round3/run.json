@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "node": "v24.19.0",
+  "runtime": "existing Windows Node; product sources copied from tested installer payload",
+  "sourceArchiveSha256": "3cb5b65dd3fc1cd54736b2c933d89569c99dc2620f0173b4afa3144d57aa11bd",
+  "installerSha256": "2787dd925e2d4948ead0c8fe2cb4db37b022e8863c5abc31b5af8e6abfe83a55"
+}

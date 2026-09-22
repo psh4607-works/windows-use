@@ -1,0 +1,23 @@
+{
+  "run": {
+    "id": "hostname-hotfix-rebuilt-installer",
+    "installer": "WindowsUse-Setup-0.2.0-x64.exe",
+    "installerSha256": "d99ac891e886c5600071262d4280d2b9465b6a26ac56ad9ab48d79bea0882379"
+  },
+  "ok": true,
+  "checked": [
+    "bundled Node and real desktop enumeration without Node on PATH",
+    "accessible pause button rejects desktop requests",
+    "accessible resume button restores access",
+    "accessible connection settings save and connection test finish",
+    "login startup checkbox updates the per-user Run registration (not an actual relogin)",
+    "background launch preserves pause and graceful exit cleans up IPC"
+  ],
+  "connectionTest": "데스크톱: 성공\r\nAuthenticated desktop IPC and Windows app enumeration succeeded.\r\nSSH 응답: 성공\r\nLocal SSH listener is ready. Remote routing and authentication were not tested.\r\n다른 PC에서의 접속·인증은 위 연결 테스트 명령으로 확인하세요.",
+  "unverified": [
+    "actual logout/login",
+    "SSH from another PC",
+    "installer wizard and uninstall",
+    "tray icon visual appearance"
+  ]
+}

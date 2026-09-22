@@ -1,0 +1,25 @@
+<!-- Environment identifiers in this historical record were anonymized for publication on 2026-09-22. -->
+# 최종 설치 파일 재검증
+
+2026-09-22, `windows-pc` Windows 11 x64 로그인 세션에서 사용자 요청으로 재검증했다.
+검증 대상은 이전에 전달한 `WindowsUse-Setup-0.2.0-x64.exe` 그 자체이며 SHA-256은
+`84ddb4d41afd0d307d9b340ca9f42956552d8d867675412828f77e1389ac8fcb`이다.
+이 검증 중 제품 코드나 설치 파일을 변경하지 않았다.
+
+- [설치 결과](install.json): 실제 EXE 설치 성공, 설치 파일 29개 해시 일치.
+- [설정 창 smoke](form-smoke.json): 전역 Node/npm이 PATH에 없는 환경에서 실행·실제 앱 조회, 일시 중지·재개, 연결 설정 저장, 연결 테스트, 자동 시작 체크박스, 종료·백그라운드 재시작 통과.
+- Mac의 실제 SSH 어댑터로 설치된 번들 Node와 격리된 클라이언트에 `doctor` 요청 성공. 인증된 IPC와 실제 데스크톱 앱 조회 성공을 확인했다.
+- [트레이 직접 조작](tray-actions.json): 숨겨진 아이콘 영역에서 Windows Use 아이콘을 확인하고, UIA로 아이콘 포커스를 검증한 뒤 Shift+F10으로 메뉴를 열었다. 메뉴 항목은 UIA Invoke로 실행했다. 좌표 클릭·마우스 이동은 사용하지 않았다.
+- 트레이의 실행 중/일시 중지 상태 표시, 일시 중지 시 `desktop_paused` 거절, 재개 후 실제 조회 복구, 종료 후 프로세스·IPC 등록 제거를 모두 확인했다.
+- 앱 자체 메뉴를 PrintWindow로 캡처하고 [실행 중](tray-menu-running.png)과 [일시 중지](tray-menu-paused.png) 표시를 직접 확인했다. 다른 앱이나 전체 화면을 캡처하지 않았다.
+- [제거 결과](uninstall.json): 실제 EXE 제거 성공, 소유 파일과 자동 시작·제거 등록 제거, 사용자 추가 파일 및 실제 클라이언트 설정 보존. 기존 데스크톱 서버 실행 상태 유지.
+
+자동 시작은 Run 등록과 `--background` 재실행까지 확인했다. 실제 로그아웃/로그인은
+사용 중인 세션을 끊으므로 수행하지 않았다. 설치 마법사의 대화형 화면, Windows 10,
+전역 Node가 전혀 설치되지 않은 별도 클린 VM도 이번 검증에 포함하지 않는다.
+
+`form-smoke.json`의 `unverified`는 그 스크립트 단독 검증 범위다. SSH·트레이·제거는
+위 별도 검사로 확인했다. 설치 EXE는 여전히 코드 서명되지 않았다.
+
+전송 중 SSH 연결이 한 번 끊겼지만 재전송 뒤 위 체크섬 일치를 확인한 파일만 실행했다.
+검증용 설치·임시 파일·예약 작업은 정리했으며 기존 수동 서버나 세션은 종료하지 않았다.

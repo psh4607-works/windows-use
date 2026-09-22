@@ -5,7 +5,7 @@ const MAX_REQUEST = 2 * 1024 * 1024;
 const MAX_RESPONSE = 20 * 1024 * 1024;
 const envelope = error => ({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message } });
 
-export async function startBroker({ endpoint, token, handler }) {
+export async function startBroker({ endpoint, token, handler, prepare }) {
   let queue = Promise.resolve();
   const sockets = new Set();
   const server = createServer({ allowHalfOpen: true }, socket => {
@@ -22,17 +22,18 @@ export async function startBroker({ endpoint, token, handler }) {
       if (!data.includes('\n')) return;
       received = true;
       socket.setTimeout(0);
-      let value;
+      let value, execute;
       try {
         value = JSON.parse(data);
         const candidate = Buffer.from(typeof value.token === 'string' ? value.token : '');
         const expected = Buffer.from(token);
         if (candidate.length !== expected.length || !timingSafeEqual(candidate, expected)) throw new Error('Unauthorized desktop broker request');
+        execute = prepare ? prepare(value.request) : () => handler(value.request);
       } catch (error) { socket.end(`${JSON.stringify(envelope(error))}\n`); return; }
       queue = queue.then(async () => {
         if (socket.destroyed) return;
         let response;
-        try { response = { ok: true, result: await handler(value.request) }; }
+        try { response = { ok: true, result: await execute() }; }
         catch (error) { response = envelope(error); }
         const text = JSON.stringify(response);
         socket.end(`${Buffer.byteLength(text) <= MAX_RESPONSE ? text : JSON.stringify(envelope(new Error('Desktop response exceeds size limit')))}\n`);

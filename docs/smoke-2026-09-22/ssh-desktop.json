@@ -1,0 +1,67 @@
+{
+  "host": "windows-pc",
+  "isolatedState": true,
+  "doctor": {
+    "state": "running",
+    "activeRequests": 1,
+    "pid": 27008,
+    "desktop": {
+      "ok": true,
+      "message": "Authenticated desktop IPC and Windows app enumeration succeeded."
+    }
+  },
+  "snapshot": {
+    "snapshot": {
+      "id": "d2904896-ed69-4061-97ab-6d1fc36813ee",
+      "app": {
+        "name": "WindowsUse",
+        "bundleId": "WindowsUse",
+        "pid": 24684
+      },
+      "window": {
+        "title": "Windows Use",
+        "id": 11996164,
+        "index": null,
+        "x": 632,
+        "y": 116,
+        "width": 656,
+        "height": 799,
+        "isMinimized": null,
+        "isOffscreen": null,
+        "screenIndex": null
+      },
+      "coordinateSpace": "window",
+      "treeText": "App=WindowsUse (pid 24684)\nWindow: \"Windows Use\", App: WindowsUse.\n\n0 창 Windows Use\n\t1 창 6029734\n\t\t2 텍스트 Windows Use\n\t\t3 텍스트 실행 중 · 연결 요청을 받을 수 있습니다\n\t\t4 텍스트 이 PC의 화면 조회와 입력을 Orca / Codex에 연결합니다.\n\t\t5 창 759240068\n\t\t\t6 창 일시 중지\n\t\t\t7 창 연결 테스트\n\t\t8 창 Windows 로그인 시 자동 시작\n\t\t9 창 921314\n\t\t\t10 텍스트 SSH 연결 이름\n\t\t\t11 창 windows-pc\n\t\t\t12 텍스트 이 PC의 접속 주소\n\t\t\t13 창 test-pc\n\t\t\t14 텍스트 Windows 사용자\n\t\t\t15 창 example-user\n\t\t\t16 텍스트 SSH 포트\n\t\t\t17 창 596708680\n\t\t\t\t18 창 1706514\n\t\t\t\t19 창 22\n\t\t20 창 연결 설정 저장\n\t\t21 텍스트 호출 PC의 SSH 설정에 사용할 정보입니다. 기존 SSH 연결이 있으면 그 설정을 유지하세요. 비밀번호·키·터널·방화벽은 여기서 변경하지 않습니다.\n\t\t22 창 Host windows-pc HostName test-pc User \"example-user\" Port 22 windows-use doctor --host windows-pc\n\t\t23 창 연결 안내 복사\n\t\t24 창 연결 테스트를 실행하면 데스크톱 접근과 로컬 SSH 응답을 확인합니다.\n\t\t25 창 Windows Use 종료",
+      "elementCount": 26,
+      "focusedElementId": null,
+      "truncation": {
+        "truncated": false,
+        "maxNodes": 1200,
+        "maxDepth": 64,
+        "maxDepthReached": false
+      }
+    },
+    "screenshot": {
+      "format": "png",
+      "width": 656,
+      "height": 799,
+      "scale": 1
+    },
+    "screenshotStatus": {
+      "state": "captured",
+      "metadata": {
+        "engine": "unknown",
+        "windowId": 11996164
+      }
+    },
+    "session": {
+      "id": "installer-verify0922",
+      "observation": "2e99804c-c330-4284-a0a1-ef950fa7fa2a",
+      "expiresAt": 1790037755588
+    }
+  },
+  "publicationRedaction": {
+    "date": "2026-09-22",
+    "note": "SSH alias, computer name and account name are synthetic replacements. The original settings screenshot is omitted from this distribution; snapshot screenshot metadata describes the historical capture."
+  }
+}

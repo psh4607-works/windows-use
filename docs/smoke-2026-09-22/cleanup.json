@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "testDirectoryRemoved": true,
+  "testScheduledTasksRemaining": 0,
+  "startupRegistrationAbsent": true,
+  "uninstallRegistrationAbsent": true,
+  "legacyDesktopBrokerRunning": true,
+  "originalDesktopTaskRunning": true
+}

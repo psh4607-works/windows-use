@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "runningStatusLabel": true,
+  "pausedStatusLabel": true,
+  "pausedTrayIconName": "Windows Use — 시작 중 Windows Use — 일시 중지",
+  "pauseRejectsDesktop": true,
+  "resumeRestoresDesktop": true,
+  "exitStopsProcessAndRemovesRegistration": true,
+  "interaction": "UIA Invoke; verified tray-icon focus followed by Shift+F10; no pointer movement or coordinate clicks",
+  "captures": [
+    "tray-menu-running.png",
+    "tray-menu-paused.png"
+  ]
+}

@@ -8,13 +8,13 @@ import { sendRequest } from '../src/transport.mjs';
 
 const help = `windows-use — standalone Windows UI Automation (Node.js 22+)
 
-Commands: serve, capabilities, apps, windows, snapshot, click, invoke, set-value,
+Commands: serve, status, doctor, capabilities, apps, windows, snapshot, click, invoke, set-value,
           type-text, press-key, hotkey, paste-text, scroll, drag
 
 Start in a Windows desktop terminal: windows-use serve (keep it running)
 Local Windows: windows-use apps
 From Mac/Orca: windows-use apps --host <SSH-alias>
-Remote install defaults to %USERPROFILE%/.windows-use/app.
+Remote install discovers %LOCALAPPDATA%/Programs/WindowsUse, then the legacy %USERPROFILE%/.windows-use/app.
 Override with --remote-dir <Windows-path>.
 
 Observe: windows-use snapshot --app Notepad --session my-task [--screenshot image.png]
@@ -50,7 +50,7 @@ async function readStdin() {
 
 try {
   const options = parseCli(process.argv.slice(2));
-  if (options.version) process.stdout.write('0.1.0\n');
+  if (options.version) process.stdout.write('0.2.0\n');
   else if (options.help) process.stdout.write(help);
   else if (options.request.command === 'serve') {
     if (process.platform !== 'win32' || options.host) throw new Error('Run serve directly in the interactive Windows desktop session.');
@@ -82,6 +82,7 @@ try {
       result = { ...result, screenshot: { ...metadata, path } };
     }
     process.stdout.write(`${JSON.stringify({ ok: true, result })}\n`);
+    if (!rpc && request.command === 'doctor' && result.desktop?.ok !== true) process.exitCode = 1;
   }
 } catch (error) {
   process.stdout.write(`${JSON.stringify({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message } })}\n`);

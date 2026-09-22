@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "upgrade": {
+    "installerSha256": "d99ac891e886c5600071262d4280d2b9465b6a26ac56ad9ab48d79bea0882379",
+    "exitCode": 0,
+    "payloadFilesVerified": 29,
+    "runningClientStopped": true,
+    "startupDisabledPreserved": true,
+    "userFilePreserved": true
+  },
+  "legacy": {
+    "registeredPidBeforeUninstall": 15304,
+    "activeBeforeUninstall": true,
+    "note": "The original broker PID changed during the session; the test did not modify its files or scheduled task."
+  },
+  "uninstall": {
+    "launcherExitCode": 0,
+    "ownedFilesRemoved": true,
+    "registrationsAndShortcutsRemoved": true,
+    "userFilePreserved": true,
+    "isolatedSettingsSentinelPreserved": true,
+    "legacyBrokerStillRunning": true,
+    "remainingInstallFiles": [
+      "keep-user-file.txt"
+    ]
+  }
+}

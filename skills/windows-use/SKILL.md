@@ -7,7 +7,9 @@ description: Use the standalone windows-use CLI to inspect and operate Windows a
 
 Run `windows-use --help` first. This is a standalone CLI, distinct from `orca computer`; Orca agents invoke it through their normal terminal/shell tools.
 
-The Windows target needs Node.js 22+ and this package. A `windows-use serve` process must run in the logged-in Windows desktop session. Start it in a normal Windows terminal or an Orca terminal on that Windows desktop; an SSH service session does not establish desktop access. The Mac/Linux caller uses the same package and `--host <existing-SSH-alias>`. The default remote installation is `%USERPROFILE%/.windows-use/app`; specify `--remote-dir` for another location. Setup is documented in the package README.
+The Windows installer includes Node.js and a tray client; Windows does not need a separate Node installation. Launch Windows Use from the Windows Start menu or at login. It must run in the logged-in Windows desktop session; an SSH service session does not establish desktop access. The Mac/Linux caller needs Node.js 22+ and this package, using `--host <existing-SSH-alias>`. Remote discovery first checks `%LOCALAPPDATA%/Programs/WindowsUse`, then the legacy `%USERPROFILE%/.windows-use/app`. Use `--remote-dir` for another installation. Legacy manual installs still require Node.js 22+ and `windows-use serve` in a desktop terminal. Setup is documented in the package README.
+
+Use `windows-use status --host <alias>` for desktop state and `windows-use doctor --host <alias>` to verify SSH transport, authenticated desktop IPC and app enumeration. Doctor exits nonzero if desktop access is unavailable. The tray connection test separately checks local desktop access and an SSH banner; it cannot prove external routing/authentication. A paused client rejects all desktop reads and actions. Only the local tray resumes access, and a new snapshot is required afterward. Do not bypass a user's pause by starting another server. Settings and pause state persist across restarts. The tray reclaims confirmed-dead owner registrations; a live owner or unverifiable PID requires inspection.
 
 ## Observe and act
 

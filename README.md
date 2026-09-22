@@ -7,16 +7,19 @@ Orca의 Windows Computer Use를 추출한 독립 CLI와 스킬입니다. Orca �
 ```text
 Orca / Codex / terminal
         ↓ windows-use --host <SSH alias>
-existing SSH connection → Windows CLI (JSON stdin)
+existing SSH connection → Windows CLI + bundled Node (JSON stdin)
         ↓ authenticated local named pipe
-windows-use serve (logged-in Windows desktop)
+Windows Use tray client (logged-in Windows desktop)
         ↓
 PowerShell UI Automation + focus helper
 ```
 
 ## 구성과 비용
 
-- 실행 요구 사항: 호출 PC와 Windows PC의 Node.js 22 이상. 런타임 npm 의존성 0개.
+- 호출 PC 요구 사항: Node.js 22 이상. CLI의 런타임 npm 의존성 0개.
+- Mac/Linux는 SSH 호출 측으로 지원합니다. 데스크톱 서버와 트레이 host는 실행 진입점에서 Windows만 허용합니다. 내부 테스트의 Unix socket은 제품의 Mac/Linux 데스크톱 지원을 의미하지 않습니다.
+- Windows 설치 파일은 Node.js 24.21.0을 포함합니다. Windows PC에 Node.js를 별도로 설치할 필요가 없습니다.
+- 설치 대상: x64 Windows 10/11, .NET Framework 4.8 이상(최신 Windows 기본 구성 요소). ARM64 설치 파일은 아직 제공하지 않습니다.
 - Windows 스크립트와 필요한 제어 모듈만 포함합니다. 소스 출처는 `provenance.json`.
 - 전체 Orca 빌드, Electron, upstream E2E, 예약 Actions를 포함하지 않습니다.
 - 이 저장소에는 GitHub Actions 워크플로가 없습니다. 테스트·빌드는 수동으로 실행합니다.
@@ -37,11 +40,51 @@ npm pack
 Mac/Linux에서 CLI 등록:
 
 ```sh
-npm install --global /path/to/psh4607-windows-use-0.1.0.tgz
+npm install --global /path/to/psh4607-windows-use-0.2.0.tgz
 windows-use --help
 ```
 
 ## Windows 설치
+
+1. 로그인된 Windows 데스크톱에서 `WindowsUse-Setup-0.2.0-x64.exe`를 실행합니다.
+2. 기본 선택된 **Windows 로그인 시 자동 시작**을 유지하고 설치합니다. 관리자 권한을 요구하지 않습니다.
+3. 설치 완료 후 **Windows Use 시작**을 선택합니다. 이후에는 시작 메뉴 또는 트레이 아이콘에서 엽니다.
+4. 연결 설정에 기존 SSH 연결 이름, Windows 접속 주소·사용자·포트를 입력하고 저장합니다.
+5. **연결 테스트**로 데스크톱 접근과 로컬 SSH 응답을 확인합니다. 다른 PC에서의 실제 인증·통신은 아래 명령으로 별도 확인합니다.
+
+```sh
+windows-use doctor --host <existing-SSH-alias>
+windows-use apps --host <existing-SSH-alias>
+```
+
+- 설치 위치는 `%LOCALAPPDATA%\Programs\WindowsUse`입니다. Windows PC에 Orca/Codex나 npm은 필요하지 않습니다.
+- 트레이 메뉴: 실행 상태, 연결 설정, 연결 테스트, 일시 중지/재개, 종료. 설정 창의 닫기 버튼은 트레이로 숨깁니다.
+- 일시 중지는 화면 조회와 입력을 거절하며 이미 시작된 작업은 마무리합니다. 재개하면 새 snapshot이 필요합니다. 중지 상태는 종료·로그인 후에도 유지됩니다.
+- 일시 중지 상태를 디스크에 저장하지 못해도 현재 접근은 차단하며 저장 실패를 표시합니다. 이 경우 재시작 후에는 이전 저장 상태로 돌아갈 수 있으므로 저장 장치·권한 문제를 해결하고 일시 중지를 다시 저장하세요.
+- 자동 실행은 현재 사용자의 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`에 등록합니다. 설정에서 끌 수 있습니다.
+- 연결 설정은 호출 PC의 SSH 설정에 사용할 안내 정보입니다. SSH 서버·인증키·Cloudflare 터널·방화벽을 자동 설정하거나 수정하지 않습니다. 기존 SSH 사용자와 데스크톱 사용자가 같아야 합니다.
+- 연결 테스트는 입력 중인 SSH 포트를 사용하고 설정을 자동 저장하지 않습니다. Windows에서 확인한 로컬 SSH 응답은 외부 네트워크나 SSH 인증 성공의 증거가 아닙니다.
+- `doctor`는 원격 SSH 왕복, 인증된 IPC, 실제 앱 목록 조회를 검사합니다. 데스크톱이 중지됐거나 조회에 실패하면 종료 코드 1입니다.
+- 업데이트 시 현재 트레이 앱을 정상 종료한 뒤 파일을 교체합니다. 제거는 Windows의 설치된 앱 또는 시작 메뉴에서 실행합니다. 연결 설정·기존 수동 설치·사용자 추가 파일은 보존합니다.
+- 다른 `windows-use serve`가 실행 중이면 먼저 해당 소유자를 확인하고 정상 종료하세요. 설치 프로그램은 기존 수동 서버를 임의 종료하지 않습니다. 트레이는 죽은 PID의 등록만 회수하며 살아 있는 소유자는 덮어쓰지 않습니다.
+- 현재 배포 EXE는 코드 서명되지 않았습니다. Windows 실기 검증 범위는 [설치 검증 기록](docs/windows-client-verification.md)을 확인하세요.
+
+### Windows 설치 파일 빌드
+
+빌드 PC에 Node.js 22+, .NET SDK, NSIS 3.x(`makensis`)가 필요합니다. Mac과 Windows에서 빌드할 수 있으며 빌드 도구는 설치 파일에 포함하지 않습니다.
+
+```sh
+npm ci
+npm test
+npm run test:bridge
+npm run package:windows
+```
+
+`DOTNET`, `MAKENSIS`, `NSISDIR` 환경 변수로 빌드 도구 위치를 지정할 수 있습니다. Windows에서도 호출 실행 파일은 셸 배치 파일이 아닌 `dotnet.exe`, `makensis.exe`를 사용하세요.
+
+`release/WindowsUse-Setup-0.2.0-x64.exe`와 SHA-256 파일이 생성됩니다. Node Windows ZIP은 버전·SHA-256을 고정하고 다운로드 및 캐시 재사용 시 검증합니다. 런타임 라이선스와 파일별 해시를 설치 파일에 포함합니다.
+
+### 기존 수동 설치
 
 Node.js 22 이상이 있는 Windows PC에 배포 파일을 복사한 다음, **로그인된 Windows
 데스크톱의 터미널**에서 실행합니다. 기존 파일이 있는 설치 경로는 먼저 확인하세요.
@@ -49,12 +92,12 @@ Node.js 22 이상이 있는 Windows PC에 배포 파일을 복사한 다음, **�
 ```powershell
 $installDir = Join-Path $env:USERPROFILE '.windows-use/app'
 New-Item -ItemType Directory -Force $installDir | Out-Null
-tar -xzf .\psh4607-windows-use-0.1.0.tgz -C $installDir --strip-components=1
+tar -xzf .\psh4607-windows-use-0.2.0.tgz -C $installDir --strip-components=1
 node (Join-Path $installDir 'bin/windows-use.mjs') serve
 ```
 
 마지막 프로세스를 계속 실행해 둡니다. Windows의 Orca 터미널에서도 시작할 수 있습니다.
-Ctrl+C로 종료합니다. 시작 프로그램이나 Windows 서비스는 자동으로 등록하지 않습니다.
+Ctrl+C로 종료합니다. 이 수동 설치 방식은 시작 프로그램이나 Windows 서비스를 등록하지 않습니다.
 SSH에서 `serve`를 시작하면 대화형 데스크톱을 사용할 수 있다는 보장이 없습니다.
 
 다른 Windows 터미널에서 로컬 CLI를 사용하려면 `node <설치경로>/bin/windows-use.mjs`
@@ -70,7 +113,7 @@ windows-use set-value --host <existing-SSH-alias> --app Notepad --session task-a
   --observation <result.session.observation> --element 4 --value 'hello'
 ```
 
-`--remote-dir`를 생략하면 위의 기본 Windows 설치 경로를 사용합니다. SSH는 기존 인증을
+`--remote-dir`를 생략하면 새 설치 경로를 먼저 찾고 기존 `%USERPROFILE%/.windows-use/app`을 확인합니다. 새 설치에서는 번들 Node를 사용합니다. SSH는 기존 인증을
 사용하며 새 자격증명을 만들거나 host key 검증을 끄지 않습니다. Windows 데스크톱
 서버와 SSH 사용자는 동일한 Windows 계정을 사용해야 합니다.
 

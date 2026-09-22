@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "finalInstallerSha256": "84ddb4d41afd0d307d9b340ca9f42956552d8d867675412828f77e1389ac8fcb",
+  "windowsTestedInstallerSha256": "d99ac891e886c5600071262d4280d2b9465b6a26ac56ad9ab48d79bea0882379",
+  "payloadFilesVerified": 29,
+  "changedSinceWindowsSmoke": [
+    "docs/windows-client-verification.md"
+  ],
+  "runtimeAndApplicationFilesUnchanged": true
+}
