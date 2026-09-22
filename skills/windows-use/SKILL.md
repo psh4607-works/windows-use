@@ -1,11 +1,13 @@
 ---
 name: windows-use
-description: Use the standalone windows-use CLI to inspect and operate Windows apps through UI Automation, locally or over an existing SSH connection. Works from Orca agent terminals without building or running Orca on the target Windows PC.
+description: Inspect and operate Windows apps through the windows-use CLI using accessibility snapshots, clicks, text input, and keyboard commands. Use from Codex or Claude Code shell tools, locally on Windows or over an existing SSH connection.
 ---
 
 # Windows Use
 
-Run `windows-use --help` first. This is a standalone CLI, distinct from `orca computer`; Orca agents invoke it through their normal terminal/shell tools.
+Run `windows-use --help` first through your normal shell tool. Use the same CLI in Codex, Claude Code, or a terminal; no agent-specific bridge or MCP server is required. If the command is unavailable, use a CLI path supplied by the user or follow the [installation guide](https://github.com/psh4607/windows-use#readme). Loading this skill does not install the CLI or establish an SSH connection.
+
+For a local Windows installer setup, invoke `%LOCALAPPDATA%\Programs\WindowsUse\windows-use.cmd` from PowerShell and omit `--host`. In PowerShell, resolve that path with `$env:LOCALAPPDATA`. For a source checkout, `node /path/to/windows-use/bin/windows-use.mjs` is an alternative to the command on PATH. Carry the chosen executable path through the task.
 
 The Windows installer includes Node.js and a tray client; Windows does not need a separate Node installation. Launch Windows Use from the Windows Start menu or at login. It must run in the logged-in Windows desktop session; an SSH service session does not establish desktop access. The Mac/Linux caller needs Node.js 22+ and this package, using `--host <existing-SSH-alias>`. Remote discovery first checks `%LOCALAPPDATA%/Programs/WindowsUse`, then the legacy `%USERPROFILE%/.windows-use/app`. Use `--remote-dir` for another installation. Legacy manual installs still require Node.js 22+ and `windows-use serve` in a desktop terminal. Setup is documented in the package README.
 
@@ -51,5 +53,5 @@ Use `--text-file` or `--value-file` when input should stay out of process argume
 - A timeout, disconnected host, failed action, stale observation, or changed window requires a new snapshot before retrying. Do not automatically replay input whose result is unknown.
 - Use a separate session for each task; a busy session must not be shared or unlocked while another caller owns it.
 - If the desktop server is unavailable, restore the server in the actual Windows desktop session. Do not start it through SSH and claim desktop access.
-- Keep SSH connectivity, desktop observation, input verification and Orca integration as separate verification results.
-- Source updates are explicit: the package records its original Orca revision in `provenance.json`. Updating Orca itself does not update this standalone package.
+- Keep SSH connectivity, desktop observation, input verification and agent invocation as separate verification results.
+- Update the CLI and installed skill together when upgrading the package.

@@ -13,7 +13,8 @@ Commands: serve, status, doctor, capabilities, apps, windows, snapshot, click, i
 
 Start in a Windows desktop terminal: windows-use serve (keep it running)
 Local Windows: windows-use apps
-From Mac/Orca: windows-use apps --host <SSH-alias>
+From another machine: windows-use apps --host <SSH-alias>
+Codex / Claude Code: invoke these commands through the agent's shell tool.
 Remote install discovers %LOCALAPPDATA%/Programs/WindowsUse, then the legacy %USERPROFILE%/.windows-use/app.
 Override with --remote-dir <Windows-path>.
 
