@@ -6,15 +6,15 @@ const stale = () => new Error('Desktop observation changed or is invalid; take a
 
 // Shared by direct executeRequest calls and the broker. A sibling lock survives
 // observation-directory resets. Never steal an uncertain/crashed owner's lock.
-export async function lockObservations(stateDir) {
+export async function lockObservations(stateDir, { openFile = open } = {}) {
   const path = `${resolve(stateDir)}.input.lock`;
   let lock;
-  try { lock = await open(path, 'wx', 0o600); }
+  try { lock = await openFile(path, 'wx', 0o600); }
   catch (error) {
     if (error.code === 'EEXIST') throw new Error('Desktop observation state is busy; retry after the active request. If its owner crashed, stop all clients before removing the state.input.lock file.');
     throw error;
   }
-  return async () => { await lock.close(); await rm(path, { force: true }); };
+  return async () => { try { await lock.close(); } finally { await rm(path, { force: true }); } };
 }
 
 export async function readInputRevision(stateDir, allowReset = false) {

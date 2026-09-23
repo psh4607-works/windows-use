@@ -191,3 +191,54 @@ test('sensitive snapshot metadata suppresses unstructured summaries and pixels b
     }
   } finally { provider.shutdown(); }
 });
+
+test('short sensitive input preserves selector/protocol data and unrelated words', async () => {
+  for (const value of ['e', '1', '12']) {
+    const before = { ...element, isSensitive: true, automationId: value, name: `Editor${value}`, controlType: 'ControlType.Edit' };
+    const provider = fixture({ before, after: [{ ...before, value }, { ...element, index: 3, isSensitive: false, name: `Version${value}`, value: `version${value}` }] }).providerFactory();
+    try {
+      await provider.snapshot({ app: 'fixture' });
+      const result = await provider.action('setValue', { app: 'fixture', elementIndex: 2, value });
+      assert.equal(result.action.verification.expected, '[redacted]');
+      assert.equal(result.action.path, 'accessibility');
+      for (const saved of provider.snapshots.values()) {
+        assert.equal(saved.app.name, 'fixture');
+        assert.equal(saved.elements[0].automationId, value);
+        assert.equal(saved.elements[0].name, `Editor${value}`);
+        assert.equal(saved.elements[0].controlType, 'ControlType.Edit');
+        assert.deepEqual(saved.elements[0].actions, ['SetValue', 'Invoke']);
+        assert.equal(saved.elements[0].value, '[redacted]');
+        assert.equal(saved.elements[1].value, `version${value}`);
+        assert.equal(saved.treeLines[0], '2 [redacted]');
+        assert.equal(saved.treeLines[1], `3 edit version${value}`);
+      }
+    } finally { provider.shutdown(); }
+  }
+});
+
+test('a null action HWND stays unverified and cannot authorize follow-up input', async t => {
+  const c = await context(t, { afterWindow: null, after: [{ ...element, value: 'public' }] });
+  const observed = await c.run(snapshot('a'));
+  const result = await c.run(input('a', observed.session.observation, 'set-value', { elementIndex: 2, value: 'public' }));
+  assert.equal(result.action.verification.state, 'unverified');
+  assert.equal(result.action.verification.reason, 'window_changed');
+  await assert.rejects(c.run(input('a', result.session.observation)), /fresh snapshot/);
+  assert.equal(c.inputs.length, 1);
+});
+
+test('free-text redaction escapes literal patterns and preserves existing markers', async () => {
+  for (const value of ['.', 'a+b', 'foo(bar)', '한', '💡', 'red']) {
+    const provider = fixture({ before: { ...element, isSensitive: true } }).providerFactory();
+    const bridge = provider.callBridge;
+    provider.callBridge = async request => {
+      const result = await bridge(request);
+      if (request.tool === 'set_value') result.snapshot.windowTitle = `Value: ${value} [redacted]`;
+      return result;
+    };
+    try {
+      await provider.snapshot({ app: 'fixture' });
+      const result = await provider.action('setValue', { app: 'fixture', elementIndex: 2, value });
+      assert.equal(result.snapshot.window.title, 'Value: [redacted] [redacted]');
+    } finally { provider.shutdown(); }
+  }
+});

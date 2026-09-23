@@ -196,3 +196,19 @@ Assert-Test ((New-OrcaElementRecord $uia 2 $null).isSensitive -eq $true) 'UIA se
 $uia.Current.Name = 'Account name'
 Assert-Test ((New-OrcaElementRecord $uia 2 $null).isSensitive -eq $false) 'UIA ordinary record marked sensitive'
 Write-Output 'PASS: UIA/MSAA serialized records carry explicit sensitivity metadata'
+
+# Real record/value functions must share one classification (including its decision).
+foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+    if ($definition.Name -eq 'Get-OrcaValueText') { Invoke-Expression $definition.Extent.Text }
+}
+$script:sensitivityReads = 0
+$script:classifyElement = ${function:Test-OrcaSensitiveElement}
+function Test-OrcaSensitiveElement($Element) { $script:sensitivityReads++; & $script:classifyElement $Element }
+$uia.Current.Name = 'Password'
+$record = New-OrcaElementRecord $uia 2 $null
+Assert-Test ($script:sensitivityReads -eq 1) 'UIA record/value read classified the same element more than once'
+Assert-Test ($record.isSensitive -and $record.value -eq '[redacted]') 'Precomputed classification failed to protect the value'
+$script:sensitivityReads = 0
+$null = Get-OrcaValueText $uia
+Assert-Test ($script:sensitivityReads -eq 1) 'Standalone value reads must still classify when no flag is supplied'
+Write-Output 'PASS: UIA record/value share one classification; standalone callers remain protected'

@@ -50,27 +50,44 @@ function sensitiveAction(snapshot, target) {
   return sensitiveElement(target) || sensitiveElement(refreshed) || !refreshed && (snapshot?.elements ?? []).some(sensitiveElement);
 }
 function redactStrings(value, secrets) {
-  if (typeof value === "string") {
-    return secrets.filter((secret) => secret && secret !== REDACTED).sort((a, b) => b.length - a.length).reduce((text, secret) => text.split(secret).join(REDACTED), value);
+  if (typeof value !== "string") return value;
+  let text = value;
+  for (const secret of new Set(secrets.filter((secret2) => secret2 && secret2 !== REDACTED))) {
+    const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = Array.from(secret).length < 4 ? new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "gu") : new RegExp(escaped, "gu");
+    text = text.split(REDACTED).map((part) => part.replace(pattern, () => REDACTED)).join(REDACTED);
   }
-  if (Array.isArray(value)) return value.map((item) => redactStrings(item, secrets));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactStrings(item, secrets)]));
-  }
-  return value;
+  return text;
 }
 function sanitizeResponse(response, secrets = []) {
   const sensitive = (response.snapshot?.elements ?? []).filter(sensitiveElement);
-  const clean = redactStrings(response, [...secrets, ...sensitive.map((element) => element.value ?? "")]);
+  const needles = [...secrets, ...sensitive.map((element) => element.value ?? "")];
+  const clean = structuredClone(response);
   if (clean.snapshot) {
-    clean.snapshot.elements = clean.snapshot.elements?.map((element) => sensitiveElement(element) ? { ...element, isSensitive: true, value: REDACTED } : element);
+    const snapshot = clean.snapshot;
+    snapshot.elements = snapshot.elements?.map((element) => sensitiveElement(element) ? { ...element, isSensitive: true, value: REDACTED } : { ...element, value: redactStrings(element.value, needles) });
+    const sensitiveIndexes = new Set(sensitive.map((element) => element.index));
+    snapshot.treeLines = snapshot.treeLines?.map((line) => {
+      const indexed = /^(\s*\d+)(\s+)(.*)$/.exec(line);
+      if (!indexed) return redactStrings(line, needles);
+      if (sensitiveIndexes.has(Number(indexed[1].trim()))) return `${indexed[1]} ${REDACTED}`;
+      return `${indexed[1]}${indexed[2]}${redactStrings(indexed[3], needles)}`;
+    });
+    snapshot.windowTitle = redactStrings(snapshot.windowTitle, needles);
+    if (snapshot.screenshotError) snapshot.screenshotError.message = redactStrings(snapshot.screenshotError.message, needles);
     if (sensitive.length || secrets.length) {
-      clean.snapshot.selectedText = null;
-      clean.snapshot.focusedSummary = null;
-      clean.snapshot.screenshotPngBase64 = null;
-      clean.snapshot.screenshotError = { message: "Screenshot withheld for sensitive observation" };
+      snapshot.selectedText = null;
+      snapshot.focusedSummary = null;
+      snapshot.screenshotPngBase64 = null;
+      snapshot.screenshotError = { message: "Screenshot withheld for sensitive observation" };
+      if (clean.action?.verification) {
+        const verification = clean.action.verification;
+        if ("expected" in verification) verification.expected = REDACTED;
+        if ("actualPreview" in verification) verification.actualPreview = REDACTED;
+      }
     }
   }
+  if (clean.action) clean.action.fallbackReason = redactStrings(clean.action.fallbackReason, needles);
   return clean;
 }
 

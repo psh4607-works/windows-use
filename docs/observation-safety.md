@@ -86,9 +86,11 @@ still receives the original value; the private temporary operation file is remov
 by the existing bridge cleanup.
 
 For sensitive observations, unstructured selection/focus summaries and screenshots
-are withheld because they lack field-level provenance. Known sensitive strings are
-removed from text output and metadata; classification cannot detect every secret in
-an arbitrary third-party application. Ordinary values still support verification.
+are withheld because they lack field-level provenance. Sensitive values and their rendered tree rows are redacted structurally. App/element
+selectors and protocol fields stay unchanged; free-text redaction matches short
+inputs (under four Unicode characters) only as whole tokens, preserving unrelated
+words and existing redaction markers. Native classification cannot detect every
+secret in an arbitrary third-party application. Ordinary values still support verification.
 
 ## Verification scope
 

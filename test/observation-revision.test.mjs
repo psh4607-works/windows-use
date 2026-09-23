@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, open, readFile, writeFile, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startBroker, callBroker } from '../src/broker.mjs';
 import { randomUUID } from 'node:crypto';
 import { executeRequest } from '../src/request.mjs';
+import { lockObservations } from '../src/observation-revision.mjs';
 import { startDesktop, requestDesktop } from '../src/desktop.mjs';
 
 const snap = session => ({ command: 'snapshot', session, params: { app: 'fixture' } });
@@ -187,4 +188,15 @@ test('an abandoned global lock fails closed without deleting existing observatio
   const desktop = await startDesktop({ directory: c.directory, handler: c.run });
   try { await assert.rejects(c.run(press('a', a)), stale); }
   finally { await desktop.close(); }
+});
+
+test('a close error releases the global lock path and preserves the error', async t => {
+  const c = await setup(t);
+  const release = await lockObservations(c.stateDir, { openFile: async (...args) => {
+    const handle = await open(...args);
+    return { close: async () => { await handle.close(); throw new Error('fixture close failure'); } };
+  } });
+  await assert.rejects(release(), /fixture close failure/);
+  const releaseNext = await lockObservations(c.stateDir);
+  await releaseNext();
 });
