@@ -3,6 +3,7 @@ import type {
   ComputerProviderCapabilities
 } from '../../shared/runtime-types'
 import { optionalNumberParam, optionalStringParam } from './desktop-script-provider-params'
+import { REDACTED, refreshedElement, sensitiveAction } from './desktop-script-observation-safety'
 import { RuntimeClientError } from './runtime-client-error'
 import type {
   BridgeElement,
@@ -89,6 +90,9 @@ export function desktopActionWindowTarget(
   current: BridgeSnapshot | null
 ): Pick<BridgeRequest, 'windowId' | 'windowIndex'> {
   if (explicitWindowId !== undefined) {
+    if (current?.windowId !== explicitWindowId) {
+      throw new RuntimeClientError('window_not_found', 'Take a fresh snapshot of this window handle before acting')
+    }
     return { windowId: explicitWindowId }
   }
   if (explicitWindowIndex !== undefined) {
@@ -104,7 +108,7 @@ export function desktopActionWindowTarget(
   if (current?.windowIndex !== null && current?.windowIndex !== undefined) {
     throw new RuntimeClientError('window_not_found', 'Take a fresh snapshot with a window handle before acting')
   }
-  return {}
+  throw new RuntimeClientError('window_not_found', 'Take a fresh snapshot with a window handle before acting')
 }
 
 export function desktopActionMetadataFromResponse(
@@ -128,9 +132,16 @@ export function verifyDesktopAction(
   params: Record<string, unknown>,
   rawAction: ComputerActionMetadata | undefined,
   snapshot: BridgeSnapshot | undefined,
-  targetElement: BridgeElement | undefined
+  targetElement: BridgeElement | undefined,
+  observedWindowId: number | undefined
 ): ComputerActionMetadata {
-  if (rawAction?.verification) {
+  if (isWindowChangedAction(action) || (snapshot?.windowId !== undefined && snapshot.windowId !== observedWindowId)) {
+    return { ...action, verification: { state: 'unverified', reason: 'window_changed' } }
+  }
+  if (method === 'setValue' && sensitiveAction(snapshot, targetElement)) {
+    return { ...action, verification: { state: 'unverified', reason: 'sensitive_value', expected: REDACTED, actualPreview: REDACTED } }
+  }
+  if (rawAction?.verification && (method !== 'setValue' || rawAction.verification.state === 'unverified')) {
     return action
   }
   if (method === 'typeText' || method === 'pressKey' || method === 'hotkey') {
@@ -153,7 +164,7 @@ export function verifyDesktopAction(
   if (expected === undefined || elementIndex === undefined) {
     return action
   }
-  const actual = refreshedElementValue(snapshot, targetElement, elementIndex)
+  const actual = refreshedElement(snapshot, targetElement)?.value
   if (actual === expected) {
     return {
       ...action,
@@ -169,34 +180,6 @@ export function verifyDesktopAction(
       actualPreview: actual ?? null
     }
   }
-}
-
-function refreshedElementValue(
-  snapshot: BridgeSnapshot | undefined,
-  targetElement: BridgeElement | undefined,
-  fallbackIndex: number
-): string | undefined {
-  const elements = snapshot?.elements ?? []
-  // Why: app re-renders can reassign sparse element indexes after the action;
-  // verification should follow the provider identity of the acted-on element.
-  const identityMatch = targetElement
-    ? elements.find((element) => sameElementIdentity(element, targetElement))
-    : undefined
-  return (identityMatch ?? elements.find((element) => element.index === fallbackIndex))?.value
-}
-
-function sameElementIdentity(left: BridgeElement, right: BridgeElement): boolean {
-  if (left.runtimeId !== undefined && right.runtimeId !== undefined) {
-    return stableIdentityKey(left.runtimeId) === stableIdentityKey(right.runtimeId)
-  }
-  if (left.automationId && right.automationId) {
-    return left.automationId === right.automationId
-  }
-  return false
-}
-
-function stableIdentityKey(value: unknown): string {
-  return JSON.stringify(value) ?? String(value)
 }
 
 export function cacheParamsForActionResult(

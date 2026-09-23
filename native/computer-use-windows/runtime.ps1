@@ -685,6 +685,7 @@ function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
         controlType = $controlType
         localizedControlType = Get-OrcaProperty $Element "LocalizedControlType"
         className = Get-OrcaProperty $Element "ClassName"
+        isSensitive = [bool](Test-OrcaSensitiveElement $Element)
         value = Get-OrcaValueText $Element
         isSelected = Test-OrcaElementSelected $Element
         nativeWindowHandle = $nativeWindowHandle
