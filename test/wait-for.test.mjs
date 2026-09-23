@@ -176,3 +176,15 @@ test('an old server missing the target app still reports the upgrade guidance be
   } }), error => error.code === 'unsupported_wait' && /Update the desktop server/.test(error.message));
   assert.equal(reads, 1);
 });
+
+test('an unsupported windows read after a stamped poll keeps the same upgrade guidance', async () => {
+  const deps = fixture([observed([])]);
+  const original = deps.read;
+  let windows = 0;
+  deps.read = async (req, options) => {
+    if (req.command === 'windows' && ++windows > 1) throw Object.assign(new Error('private app missing'), { code: 'app_not_found' });
+    return original(req, options);
+  };
+  await assert.rejects(waitFor(request(), deps), error => error.code === 'unsupported_wait' && /Update the desktop server/.test(error.message));
+  assert.equal(windows, 2);
+});

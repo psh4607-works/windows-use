@@ -51,7 +51,7 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
       result = await bounded(() => read({ ...req, trackAccess: true, accessEpoch },
         { timeoutMs: Math.max(1, Math.ceil(deadline - now())), signal: controller.signal }));
     } catch (error) {
-      if (req.command === 'windows' && accessEpoch === undefined && error.code === 'app_not_found') throw unsupportedWait();
+      if (req.command === 'windows' && error.code === 'app_not_found') throw unsupportedWait();
       throw error;
     }
     check();
