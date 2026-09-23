@@ -1,5 +1,8 @@
 # Windows client 0.2.0 verification
 
+재현 가능한 EXE 수명주기 진입점과 결과 schema는
+[Windows 릴리스 검증 묶음](https://github.com/psh4607/windows-use/blob/main/docs/windows-release-verification.md)을 참고한다.
+
 2026-09-22. 구현 브랜치: `feat/windows-installer`.
 
 이 문서와 연결된 검증 자료는 공개용으로 정리했다. SSH 별칭·PC 이름·계정·세션 이름은

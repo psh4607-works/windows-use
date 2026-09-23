@@ -2,7 +2,10 @@
 # Uses Windows accessibility on this client's own window; does not move the pointer.
 param(
     [Parameter(Mandatory=$true)][string]$ClientDirectory,
-    [Parameter(Mandatory=$true)][string]$ReportPath
+    [Parameter(Mandatory=$true)][string]$ReportPath,
+    [string]$StateDirectory,
+    [switch]$AllowUnavailableSsh,
+    [switch]$SanitizeReport
 )
 $ErrorActionPreference = 'Stop'
 if ((Get-Process -Id $PID).SessionId -eq 0) { throw 'Run this smoke test in an interactive desktop session, not SSH session 0.' }
@@ -59,7 +62,8 @@ public static class WindowsUseSmokeAccessibility {
     }
 }
 '@
-$state = Join-Path $env:TEMP ('wu-client-smoke-' + [guid]::NewGuid().ToString('N'))
+$state = if ($StateDirectory) { $StateDirectory } else { Join-Path $env:TEMP ('wu-client-smoke-' + [guid]::NewGuid().ToString('N')) }
+if (Test-Path $state) { throw 'StateDirectory must be a new directory.' }
 $oldHome = $env:WINDOWS_USE_HOME
 $oldPath = $env:PATH
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
@@ -106,7 +110,7 @@ try {
     Invoke '연결 테스트'
     Wait-For { [WindowsUseSmokeAccessibility]::ConnectionResult($client.MainWindowHandle).Contains('데스크톱: 성공') } 'Connection test did not report successful desktop access.'
     $connectionResult = [WindowsUseSmokeAccessibility]::ConnectionResult($client.MainWindowHandle)
-    if(!$connectionResult.Contains('SSH 응답: 성공')) { throw ('Local SSH connection test failed: ' + $connectionResult) }
+    if(!$AllowUnavailableSsh -and !$connectionResult.Contains('SSH 응답: 성공')) { throw ('Local SSH connection test failed: ' + $connectionResult) }
     $results.Add('accessible connection settings save and connection test finish')
     $startup = [WindowsUseSmokeAccessibility]::Find($client.MainWindowHandle, 'Windows 로그인 시 자동 시작', 44)
     if(!$startup) { throw 'Startup checkbox is not accessible.' }
@@ -127,7 +131,10 @@ try {
     $results.Add('background launch preserves pause and graceful exit cleans up IPC')
     $shutdown = Start-Process $exe -ArgumentList '--shutdown' -PassThru -Wait
     if ($shutdown.ExitCode -ne 0 -or !$client.WaitForExit(70000)) { throw 'Installer shutdown command failed.' }
-    [ordered]@{ run=[ordered]@{ completedAtUtc=[DateTime]::UtcNow.ToString('o'); packageManifestSha256=$manifestHash }; ok=$true; checked=$results; connectionTest=$connectionResult; unverified=@('actual logout/login', 'SSH from another PC', 'installer wizard and uninstall', 'tray icon visual appearance') } |
+    $unverified=@('actual logout/login', 'SSH from another PC', 'installer wizard and uninstall', 'tray icon visual appearance')
+    if ($AllowUnavailableSsh) { $unverified += 'local SSH listener (optional probe not required)' }
+    if ($SanitizeReport) { $connectionResult='desktop verified; connection details omitted' }
+    [ordered]@{ run=[ordered]@{ completedAtUtc=[DateTime]::UtcNow.ToString('o'); packageManifestSha256=$manifestHash }; ok=$true; checked=$results; connectionTest=$connectionResult; unverified=$unverified } |
         ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 $ReportPath
 } finally {
     if ($client -and !$client.HasExited) {

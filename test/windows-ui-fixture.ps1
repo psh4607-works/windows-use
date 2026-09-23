@@ -1,13 +1,14 @@
 # Disposable live smoke fixture. Run only in a logged-in Windows desktop session.
 # Its test state contains generated text only; the window closes after ten minutes.
+param([string]$StateDirectory, [string]$WindowTitle='windows-use Smoke 20260906')
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework
-$root=Join-Path $env:USERPROFILE '.windows-use/staging-smoke-20260906'
+$root=if ($StateDirectory) { $StateDirectory } else { Join-Path $env:USERPROFILE '.windows-use/staging-smoke-20260906' }
 New-Item -ItemType Directory -Force -Path $root|Out-Null
 $statePath=Join-Path $root 'ui-state.json'
 $utf8=[Text.UTF8Encoding]::new($false)
 $window=[Windows.Window]::new()
-$window.Title='windows-use Smoke 20260906'
+$window.Title=$WindowTitle
 $window.Width=580;$window.Height=280
 $window.WindowStartupLocation='CenterScreen'
 $panel=[Windows.Controls.StackPanel]::new()
