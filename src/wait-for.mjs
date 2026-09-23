@@ -51,6 +51,10 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
       result = await bounded(() => read({ ...req, trackAccess: true, accessEpoch },
         { timeoutMs: Math.max(1, Math.ceil(deadline - now())), signal: controller.signal }));
     } catch (error) {
+      // The broker converts app_not_found to a stamped empty list on EVERY
+      // tracked windows read. A real app disappearance reaches window_closed
+      // below; this raw error means the current read path lacks that contract,
+      // even if an earlier response came from a supporting server/adapter.
       if (req.command === 'windows' && error.code === 'app_not_found') throw unsupportedWait();
       throw error;
     }

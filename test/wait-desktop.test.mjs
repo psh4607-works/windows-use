@@ -86,3 +86,24 @@ test('tracked reads retain their epoch while an app is absent and reject pause d
     release(); await paused; await rejected;
   } finally { release?.(); await desktop.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('a supported server reports mid-wait app disappearance as window_closed through real IPC', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-app-disappearance-'));
+  let absent = false, windowReads = 0, queryReads = 0;
+  const desktop = await startDesktop({ directory, handler: async request => {
+    if (request.command === 'windows') {
+      windowReads++;
+      if (absent) throw Object.assign(new Error('fixture app not found'), { code: 'app_not_found' });
+      return { windows: [{ id: 123 }] };
+    }
+    assert.equal(request.command, 'query'); queryReads++;
+    return { snapshot: { window: { id: 123 } }, query: { matches: [], matchCount: 0, unique: false, complete: true } };
+  } });
+  try {
+    await assert.rejects(waitFor({ command: 'wait-for', session: 'repro', params: { app: 'fixture', name: 'Ready' } }, {
+      read: (request, options) => requestDesktop(request, { ...options, directory }),
+      sleep: async () => { absent = true; }
+    }), error => error.code === 'window_closed' && !/Update/.test(error.message));
+    assert.equal(windowReads, 2); assert.equal(queryReads, 1);
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
