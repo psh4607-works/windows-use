@@ -51,3 +51,12 @@ test('ordinary verification is preserved without explicit secrets or sensitive e
     assert.deepEqual(sanitizeResponse(response, []).action.verification, verification);
   }
 });
+
+test('interior newlines preserve public row structure and collapse sensitive rows', () => {
+  const secret = 'SYNTHETIC_SECRET';
+  const clean = sanitizeResponse({ ok: true, snapshot: {
+    elements: [{ index: 2, isSensitive: true, value: secret }, { index: 3, isSensitive: false, value: 'ordinary value' }],
+    treeLines: [`  2 edit line1\n${secret}`, `\t3\t edit line1\n${secret} ordinary value`]
+  } });
+  assert.deepEqual(clean.snapshot.treeLines, ['  2 [redacted]', '\t3\t edit line1\n[redacted] ordinary value']);
+});
