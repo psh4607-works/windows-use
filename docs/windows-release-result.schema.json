@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Windows Use release verification result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "evidence", "status", "requiredPassed", "exitCode", "steps", "coverage", "environment", "packages", "completedAtUtc"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "evidence": {"enum": ["fixture", "windows"]},
+    "status": {"enum": ["failed", "incomplete", "checkpoint"]},
+    "requiredPassed": {"type": "boolean"},
+    "exitCode": {"enum": [1, 2]},
+    "completedAtUtc": {"type": "string", "format": "date-time"},
+    "steps": {"type": "array", "items": {"$ref": "#/$defs/step"}},
+    "coverage": {"type": "array", "items": {"$ref": "#/$defs/step"}},
+    "environment": {
+      "type": "object", "additionalProperties": false, "required": ["windows"],
+      "properties": {
+        "windows": {"type": "boolean"}, "x64": {"type": "boolean"}, "interactive": {"type": "boolean"},
+        "build": {"type": "integer"}, "nodeOnPath": {"type": "boolean"}, "pathNodeExcluded": {"type": "boolean"}
+      }
+    },
+    "packages": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"previous": {"$ref": "#/$defs/package"}, "candidate": {"$ref": "#/$defs/package"}}
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object", "additionalProperties": false, "required": ["id", "status", "code"],
+      "properties": {"id": {"type": "string", "pattern": "^[a-z-]+$"}, "status": {"enum": ["passed", "failed", "skipped", "unverified"]}, "code": {"type": "string", "pattern": "^[a-z_]+$"}}
+    },
+    "package": {
+      "type": "object", "additionalProperties": false, "required": ["installerSha256"],
+      "properties": {
+        "installerSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "smokeChecks": {"type": "integer", "minimum": 1},
+        "manifest": {
+          "type": "object", "additionalProperties": false, "required": ["sha256", "version", "runtime", "fileCount"],
+          "properties": {
+            "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+            "runtime": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}, "fileCount": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    }
+  }
+}
