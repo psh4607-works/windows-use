@@ -560,17 +560,21 @@ function Test-OrcaSensitiveElement($Element) {
     $haystack -match "(^|[^a-z0-9])pin([^a-z0-9]|$)"
 }
 
-function Get-OrcaValueText($Element) {
+function Get-OrcaValueText($Element, [switch]$Metadata) {
+    $result = [pscustomobject]@{ value = ""; valueAvailable = $false; valueTruncated = $false }
     try {
-        if (Test-OrcaSensitiveElement $Element) { return "[redacted]" }
-        $pattern = $Element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
-        $rawValue = $pattern.Current.Value
-        $text = if ($null -eq $rawValue) { "" } else { [string]$rawValue }
-        if ($text.Length -gt $TextLimit) { return $text.Substring(0, $TextLimit) + "..." }
-        $text
-    } catch {
-        ""
-    }
+        if (Test-OrcaSensitiveElement $Element) { $result.value = "[redacted]" }
+        else {
+            $pattern = $Element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+            $rawValue = $pattern.Current.Value
+            $text = if ($null -eq $rawValue) { "" } else { [string]$rawValue }
+            $result.valueAvailable = $true
+            $result.valueTruncated = $text.Length -gt $TextLimit
+            $result.value = if ($result.valueTruncated) { $text.Substring(0, $TextLimit) + "..." } else { $text }
+        }
+    } catch {}
+    if ($Metadata) { return $result }
+    $result.value
 }
 
 function Get-OrcaActions($Element) {
@@ -677,6 +681,7 @@ function Test-OrcaPlainTextSubtree($Element, [int]$MaxDepth = 4) {
 function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
     $controlType = try { [string]$Element.Current.ControlType.ProgrammaticName } catch { "" }
     $nativeWindowHandle = try { [int64]$Element.Current.NativeWindowHandle } catch { 0 }
+    $valueMetadata = Get-OrcaValueText $Element -Metadata
     [pscustomobject]@{
         index = $Index
         runtimeId = @(Get-OrcaRuntimeId $Element)
@@ -685,7 +690,10 @@ function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
         controlType = $controlType
         localizedControlType = Get-OrcaProperty $Element "LocalizedControlType"
         className = Get-OrcaProperty $Element "ClassName"
-        value = Get-OrcaValueText $Element
+        value = $valueMetadata.value
+        valueAvailable = $valueMetadata.valueAvailable
+        valueTruncated = $valueMetadata.valueTruncated
+        isSensitive = [bool](Test-OrcaSensitiveElement $Element)
         isSelected = Test-OrcaElementSelected $Element
         nativeWindowHandle = $nativeWindowHandle
         frame = Get-OrcaElementFrame $Element $WindowFrame

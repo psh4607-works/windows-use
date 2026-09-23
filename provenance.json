@@ -170,9 +170,9 @@
   "localModifications": [
     {
       "path": "native/computer-use-windows/runtime.ps1",
-      "bytes": 63132,
-      "sha256": "6d91e3af523c996d651e4fd27d946d27daa7a58cd7c88bc657ba413d5f616931",
-      "reason": "Preserve Unicode via PostMessageW; support F1-F16, enumerate and validate owned popup windows, and provide explicitly selected MSAA observation and actions."
+      "bytes": 63677,
+      "sha256": "e3a6490cc03c545b83eccb283222f3f6461e8c96bee29562a52787d742cdeb94",
+      "reason": "Preserve Unicode via PostMessageW; support F1-F16, enumerate and validate owned popup windows, and provide explicitly selected MSAA observation and actions. Expose sensitivity, value availability and truncation for exact query/wait conditions."
     },
     {
       "path": "vendor/orca/src/main/computer/desktop-script-provider-client.ts",

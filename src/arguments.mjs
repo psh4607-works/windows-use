@@ -3,11 +3,18 @@ const STRINGS = ['host', 'remote-dir', 'session', 'observation', 'app', 'element
 const BOOLEANS = ['json', 'help', 'version', 'restore-window', 'allow-pointer'];
 const PARAMS = { app: 'app', element: 'elementIndex', 'window-id': 'windowId', 'window-index': 'windowIndex', text: 'text', value: 'value', key: 'key', action: 'action', direction: 'direction', pages: 'pages', 'click-count': 'clickCount', 'mouse-button': 'mouseButton', modifiers: 'modifiers', x: 'x', y: 'y', 'from-element': 'fromElementIndex', 'to-element': 'toElementIndex', 'from-x': 'fromX', 'from-y': 'fromY', 'to-x': 'toX', 'to-y': 'toY', 'restore-window': 'restoreWindow', 'allow-pointer': 'allowPointer' };
 const NUMERIC = new Set(['element', 'window-id', 'window-index', 'pages', 'click-count', 'x', 'y', 'from-element', 'to-element', 'from-x', 'from-y', 'to-x', 'to-y']);
+const QUERY_PARAMS = { role: 'role', name: 'name', 'automation-id': 'automationId', condition: 'condition', 'window-title': 'windowTitle', 'timeout-ms': 'timeoutMs', 'poll-ms': 'pollMs' };
+STRINGS.push(...Object.keys(QUERY_PARAMS));
+Object.assign(PARAMS, QUERY_PARAMS);
+NUMERIC.add('timeout-ms'); NUMERIC.add('poll-ms');
 
 export function parseCli(args) {
   const options = Object.fromEntries([...STRINGS.map(key => [key, { type: 'string' }]), ...BOOLEANS.map(key => [key, { type: 'boolean' }])]);
   const { values, positionals } = parseArgs({ args, options, strict: true, allowPositionals: true });
   if (positionals.length > 1) throw new Error('Expected one command; pass target data with named options.');
+  if (!['query', 'wait-for'].includes(positionals[0]) && Object.keys(QUERY_PARAMS).some(key => values[key] !== undefined)) {
+    throw new Error('Selectors and wait options require query or wait-for; actions require an observed element index.');
+  }
   const params = {};
   if (values.accessibility !== undefined) {
     if (!['uia', 'msaa'].includes(values.accessibility)) throw new Error('Invalid --accessibility backend; expected uia or msaa');

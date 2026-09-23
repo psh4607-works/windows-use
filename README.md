@@ -236,6 +236,76 @@ CLI 설치·Windows 클라이언트 실행·SSH 연결을 대신하지 않습니
 - 비정상 종료 후 등록 파일이 남으면 기존 서버 실행 여부를 먼저 확인하세요. 실행 중인
   서버를 임의 종료하거나 등록 파일을 덮어쓰지 마세요.
 
+## 요소 검색과 조건 대기
+
+`query`는 새 snapshot을 관찰하고 `--role`, `--name`, `--automation-id`를 대소문자를
+구분해 정확히 AND 매칭합니다. 선택자는 하나 이상 필요합니다. 창이 여러 개면
+`--window-id`를 지정하세요. 검색과 대기는 창 인덱스, 포커스 복구, 스크린샷을 지원하지 않습니다.
+
+```sh
+windows-use query --app Notepad --session find-editor --window-id <HWND> \
+  --role ControlType.Edit --automation-id <observed-id>
+windows-use query --app <pid> --session find-button --accessibility msaa --name Save
+windows-use wait-for --app Notepad --session await-editor --name Editor \
+  --condition element --timeout-ms 10000 --poll-ms 250
+windows-use wait-for --app <pid> --session await-dialog --condition window --window-title Ready
+windows-use wait-for --app <pid> --session await-value --automation-id status \
+  --condition value --value ready
+windows-use wait-for --app <pid> --session await-change --name Editor --condition changed
+```
+
+모든 호출에 같은 `--host`/`--remote-dir`를 유지합니다. `query` 결과 형태는 다음과 같습니다.
+
+```json
+{
+  "ok": true,
+  "result": {
+    "snapshot": { "id": "…", "window": { "id": 123 } },
+    "query": {
+      "matchCount": 1, "unique": true, "complete": true,
+      "matches": [{ "index": 4, "role": "ControlType.Edit", "roleLabel": "edit",
+        "name": "Editor", "automationId": "editor", "value": "ready",
+        "valueTruncated": false, "sensitive": false, "identity": [42, 88] }]
+    },
+    "session": { "id": "find-editor", "observation": "…", "expiresAt": 123456789, "accessibility": "uia" }
+  }
+}
+```
+
+예시는 필드를 일부 생략한 구조 설명입니다. `matches`는 snapshot 순서이며, 번호는
+해당 관찰에서만 유효합니다. `unique: true`일 때 의도한 요소인지 확인한 후
+같은 app/session, `result.snapshot.window.id`, `result.session.observation`, 요소 `index`를
+다음 액션의 `--window-id`, `--observation`, `--element`에 사용하세요. 검색이 액션을
+자동 실행하지 않습니다. 0개/복수 후보도 목록으로 반환하며, 잘린 트리는 `complete: false`,
+`unique: false`입니다. 이 경우 선택자를 좁히거나 다시 관찰하세요.
+
+`role`은 UIA의 `ControlType.Edit` 같은 programmatic name, MSAA의 `MSAA.42` 같은
+네이티브 역할입니다. MSAA 사용자 정의 역할은 `MSAA.custom.<role>`입니다. 번역된 표시 역할은
+`roleLabel`이며 선택자로 사용하지 않습니다. MSAA는 AutomationId를 제공하지 않아
+`null`로 반환하며 해당 선택자를 주면 `unsupported_selector`로 실패합니다. 이름은
+현재 backend가 노출한 문자열과 비교하며, 누락된 metadata를 추측하지 않습니다.
+
+`wait-for`의 기본 조건은 `element`입니다. `window`는 요소 선택자 없이 창의 등장,
+`value`는 `--value` 또는 `--value-file`과의 정확한 일치, `changed`는 **대기 중 첫 번째로
+관찰한 값**으로부터의 변화를 기다립니다. 변경 대기는 네이티브 식별자를 추적하여 번호가
+바뀌어도 같은 요소를 확인하고, 교체된 요소는 거절합니다. 민감 요소의 이름과 AutomationId는
+검색 출력에서 가리며 값은 `null`입니다. 민감 값, 미지원 값, 잘린 값의 비교는 거절합니다.
+
+대기 시간은 단조 시계 기준 전체 deadline이며 SSH·대기열·조회 시간도 포함합니다.
+`--timeout-ms`는 1–600000ms(기본 10000), `--poll-ms`는 50–10000ms(기본 250)입니다.
+처음 선택한 HWND를 고정하며 닫히면 다른 창으로 옮겨가지 않습니다. 조건 충족 시 최신
+관찰 토큰을 반환하고, 복수 후보·불완전한 트리·pause/재개·서버 재시작은 오류로 종료합니다.
+호출 측과 Windows 서버를 함께 업데이트해야 합니다. 이전 서버에 접근 세대값이 없으면
+`unsupported_wait`로 실패합니다.
+
+polling은 호출 측에서 개별 읽기 RPC로 수행하여 broker를 대기 시간 동안 점유하지 않습니다.
+입력 재시도는 없습니다. Ctrl+C/SIGTERM은 `wait_cancelled`, deadline 초과는
+`wait_timeout`으로 종료하며 CLI 종료 코드는 1입니다. timeout/취소 오류에는 기대값이나
+마지막 관찰 값을 싣지 않습니다. 취소는 호출 측의 IPC/SSH 요청을 닫지만 이미 시작된
+단일 native 조회는 서버에서 마무리될 수 있습니다. pause는 그 조회가 끝난 뒤 관찰을
+폐기합니다. 대기 중 다른 입력이 발생하면 반환 토큰도 무효화될 수 있으므로 기존 관찰
+안전성 검사를 그대로 따르고, 액션 오류 후 자동 재입력하지 마세요.
+
 ## 검증 범위
 
 ### MSAA와 팝업 창
@@ -285,6 +355,7 @@ PowerShell 7이 설치된 Mac/Linux에서도 격리 테스트를 실행할 수 �
 
 ```sh
 npm run test:native-isolated
+pwsh -NoProfile -File native/computer-use-windows/runtime-query.test.ps1
 ```
 
 MSAA 격리 테스트는 실제 탐색·식별·액션 코드의 oleacc 호출 경계만 fixture로 대체합니다.

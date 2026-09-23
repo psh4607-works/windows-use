@@ -12,6 +12,7 @@ public sealed class OrcaMsaaNode {
     public int index, depth;
     public int[] runtimeId;
     public string automationId = "", name, controlType, localizedControlType, className = "MSAA", value;
+    public bool valueAvailable, valueTruncated;
     public bool isSelected, isFocused;
     public long nativeWindowHandle;
     public OrcaMsaaFrame frame;
@@ -130,9 +131,14 @@ public static class OrcaMsaa {
                     Optional(() => accessible.get_accHelp(child), ""));
             }
             string value = "";
+            bool valueAvailable = false, valueTruncated = false;
             // Do not query values for arbitrary containers or sensitive controls.
             if (sensitiveValue) value = "[redacted]";
-            else if (role == 42) value = Limit(Optional(() => accessible.get_accValue(child), ""), textLimit);
+            else if (role == 42) {
+                string rawValue = Optional(() => { var current = accessible.get_accValue(child); valueAvailable = true; return current; }, "");
+                valueTruncated = rawValue != null && rawValue.Length > textLimit;
+                value = Limit(rawValue, textLimit);
+            }
             var actions = new List<string>();
             if (!String.IsNullOrEmpty(Optional(() => accessible.get_accDefaultAction(child), ""))) actions.Add("Invoke");
             if ((state & 0x200000) != 0) actions.Add("Select");
@@ -145,6 +151,7 @@ public static class OrcaMsaa {
             }, null);
             nodes.Add(new OrcaMsaaNode {
                 index = nodes.Count, depth = depth, runtimeId = identity, name = name, value = value,
+                valueAvailable = valueAvailable, valueTruncated = valueTruncated,
                 // Keep custom strings distinct from system constants, including strings like "42".
                 controlType = customRole == null ? "MSAA." + role : "MSAA.custom." + customRole,
                 localizedControlType = Limit(roleName, textLimit),

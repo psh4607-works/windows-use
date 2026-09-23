@@ -49,13 +49,14 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
     } finally { await release(); }
   }
   let broker, activeRequests = 0, revision = 0;
+  const accessInstance = randomUUID();
   const idleWaiters = new Set();
   const stateDir = join(directory, 'state');
   const clearObservations = async () => {
     await rm(stateDir, { recursive: true, force: true });
     await mkdir(stateDir, { recursive: true, mode: 0o700 });
   };
-  const status = () => ({ state: paused ? 'paused' : 'running', activeRequests, pid: process.pid });
+  const status = () => ({ state: paused ? 'paused' : 'running', activeRequests, pid: process.pid, accessEpoch: `${accessInstance}:${revision}` });
   const execute = handler ?? (request => executeRequest(request, { stateDir }));
   const rejectPaused = () => { throw Object.assign(new Error('Windows Use is paused or its access state changed. Take a new snapshot after resuming.'), { code: 'desktop_paused' }); };
   const handle = async request => {
@@ -98,12 +99,12 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
   } };
 }
 
-export async function requestDesktop(request, { directory = defaultDirectory() } = {}) {
+export async function requestDesktop(request, { directory = defaultDirectory(), timeoutMs, signal } = {}) {
   if (!request || ![...COMMANDS, 'status', 'doctor'].includes(request.command)) throw new Error('Unknown command');
   let config;
   try { config = JSON.parse(await readFile(join(directory, 'server.json'), 'utf8')); }
   catch (error) { if (error.code === 'ENOENT') throw new Error('Start windows-use serve in an interactive Windows desktop terminal first.'); throw error; }
-  try { return await callBroker(request, config); }
+  try { return await callBroker(request, { ...config, timeoutMs, signal }); }
   catch (error) {
     if (['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw new Error('Desktop server is unavailable. Start windows-use serve in the Windows desktop session; do not start it over SSH.');
     throw error;
