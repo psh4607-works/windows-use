@@ -78,9 +78,28 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
   try { await clearObservations(); broker = await startBroker({ ...config, prepare: request => {
     if (!request || ![...COMMANDS, 'status', 'doctor'].includes(request.command)) throw new Error('Unknown command');
     const diagnostic = ['status', 'doctor'].includes(request.command);
+    const tracked = request.trackAccess === true;
+    if (tracked && (!['windows', 'query', 'snapshot'].includes(request.command) || request.params?.restoreWindow === true)) {
+      throw Object.assign(new Error('Access tracking is only supported for reads without focus changes.'), { code: 'invalid_wait' });
+    }
     if (paused && !diagnostic) rejectPaused();
     const admitted = revision;
-    return () => { if (!diagnostic && admitted !== revision) rejectPaused(); return handle(request); };
+    return async () => {
+      if (!diagnostic && admitted !== revision) rejectPaused();
+      if (tracked && request.accessEpoch !== undefined && request.accessEpoch !== status().accessEpoch) rejectPaused();
+      let result;
+      try { result = await handle(request); }
+      catch (error) {
+        // Preserve the wait's epoch even before the target app appears.
+        if (!tracked || request.command !== 'windows' || error.code !== 'app_not_found') throw error;
+        result = { windows: [] };
+      }
+      if (!tracked) return result;
+      // A pause may have begun while the native read was in flight. Never stamp
+      // that old observation with the new epoch, even if access already resumed.
+      if (paused || admitted !== revision) rejectPaused();
+      return { ...result, accessEpoch: status().accessEpoch };
+    };
   } }); }
   catch (error) { await rm(configPath, { force: true }); throw error; }
   return { status, setPaused: async value => {

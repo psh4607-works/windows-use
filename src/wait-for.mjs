@@ -42,28 +42,24 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
       })]);
     } finally { controller.signal.removeEventListener('abort', onAbort); }
   };
+  let accessEpoch;
   const observe = async req => {
     check();
-    const result = await bounded(() => read(req, { timeoutMs: Math.max(1, Math.ceil(deadline - now())), signal: controller.signal }));
+    const result = await bounded(() => read({ ...req, trackAccess: true, accessEpoch },
+      { timeoutMs: Math.max(1, Math.ceil(deadline - now())), signal: controller.signal }));
     check();
-    return result;
-  };
-  let windowId = params.windowId, pinned = false, polls = 0, baseline, accessEpoch;
-  const assertAccess = async () => {
-    const status = await observe({ command: 'status' });
-    if (status.state !== 'running' || (accessEpoch !== undefined && accessEpoch !== status.accessEpoch)) {
+    if (typeof result.accessEpoch !== 'string') throw queryError('unsupported_wait', 'Update the desktop server to support stamped read access epochs.');
+    if (accessEpoch !== undefined && accessEpoch !== result.accessEpoch) {
       throw queryError('desktop_paused', 'Desktop access changed during the wait; start a new wait after resuming.');
     }
-    if (typeof status.accessEpoch !== 'string') throw queryError('unsupported_wait', 'Update the desktop server to support wait access epochs.');
-    accessEpoch ??= status.accessEpoch;
+    accessEpoch ??= result.accessEpoch;
+    return result;
   };
+  let windowId = params.windowId, pinned = false, polls = 0, baseline;
   try {
     while (true) {
       check(); polls++;
-      await assertAccess();
-      let windows;
-      try { windows = (await observe({ command: 'windows', params: { app: params.app } })).windows; }
-      catch (error) { if (error.code !== 'app_not_found') throw error; windows = []; }
+      const { windows } = await observe({ command: 'windows', params: { app: params.app } });
       const candidates = windows.filter(window => (windowId === undefined || window.id === windowId) &&
         (pinned || params.windowTitle === undefined || window.title === params.windowTitle));
       if (pinned && !candidates.length) throw queryError('window_closed', 'The pinned window closed; start a new wait for another window.');
@@ -96,7 +92,6 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
           }
         }
         if (satisfied) {
-          await assertAccess();
           const { treeText, ...snapshot } = result.snapshot;
           return { snapshot, ...(result.query ? { query: result.query } : {}), session: result.session,
             wait: { condition, polls, elapsedMs: now() - started } };

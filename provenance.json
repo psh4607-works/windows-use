@@ -170,8 +170,8 @@
   "localModifications": [
     {
       "path": "native/computer-use-windows/runtime.ps1",
-      "bytes": 63677,
-      "sha256": "e3a6490cc03c545b83eccb283222f3f6461e8c96bee29562a52787d742cdeb94",
+      "bytes": 63704,
+      "sha256": "2cc4ac0aef9fc6c6d47d3da0a6966be7c62b03c64f1b0c1df3ac61bc9f523158",
       "reason": "Preserve Unicode via PostMessageW; support F1-F16, enumerate and validate owned popup windows, and provide explicitly selected MSAA observation and actions. Expose sensitivity, value availability and truncation for exact query/wait conditions."
     },
     {

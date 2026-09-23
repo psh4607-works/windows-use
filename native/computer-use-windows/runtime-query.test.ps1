@@ -2,12 +2,11 @@ $ErrorActionPreference = 'Stop'
 $source = Get-Content -Raw (Join-Path $PSScriptRoot 'runtime.ps1')
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
-foreach ($name in @('New-OrcaElementRecord', 'Get-OrcaProperty', 'Test-OrcaSensitiveElement')) {
+foreach ($name in @('New-OrcaElementRecord', 'Get-OrcaProperty', 'Test-OrcaSensitiveElement', 'Get-OrcaValueText')) {
     $definition = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
     Invoke-Expression $definition.Extent.Text
 }
 function Get-OrcaRuntimeId($Element) { @(1, 2) }
-function Get-OrcaValueText($Element) { '' }
 function Test-OrcaElementSelected($Element) { $false }
 function Get-OrcaElementFrame($Element, $WindowFrame) { $null }
 function Get-OrcaActions($Element) { @() }
@@ -52,3 +51,19 @@ if ((Read-QueryMsaa).valueAvailable -ne $false) { throw 'Unsupported MSAA value 
 $root.Unsupported = ''; $root.Role = 10
 if ((Read-QueryMsaa).valueAvailable -ne $false) { throw 'MSAA container values are not queried.' }
 Write-Output 'runtime-query: MSAA value metadata passed (isolated fixture)'
+$root.Role = 42; $root.Name = 'Password'
+if ((Read-QueryMsaa).isSensitive -ne $true) { throw 'MSAA must explicitly mark sensitive controls.' }
+$root.Name = '[redacted]'; $root.Value = '[redacted]'
+if ((Read-QueryMsaa).isSensitive -ne $false) { throw 'MSAA must explicitly mark ordinary literal redaction text as nonsensitive.' }
+Write-Output 'runtime-query: explicit MSAA sensitivity passed'
+
+$script:sensitivityChecks = 0
+$script:classifySensitive = (Get-Command Test-OrcaSensitiveElement).ScriptBlock
+function Test-OrcaSensitiveElement($Element) {
+    $script:sensitivityChecks++
+    & $script:classifySensitive $Element
+}
+$element.Current.IsPassword = $true
+$record = New-OrcaElementRecord $element 3 $null
+if ($script:sensitivityChecks -ne 1 -or $record.isSensitive -ne $true) { throw 'Each UIA record must classify sensitivity once and retain the marker.' }
+Write-Output 'runtime-query: one UIA sensitivity read per record passed'

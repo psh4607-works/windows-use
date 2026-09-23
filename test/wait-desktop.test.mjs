@@ -46,3 +46,40 @@ test('a wait releases the broker between polls so other reads and pause can comp
     await rejected;
   } finally { releaseSleep?.(); await desktop.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('tracked reads stamp access epochs and reject stale epochs before touching the desktop', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-read-epoch-'));
+  let calls = 0;
+  const desktop = await startDesktop({ directory, handler: async () => { calls++; return { windows: [] }; } });
+  try {
+    const request = { command: 'windows', trackAccess: true, params: { app: 'fixture' } };
+    const first = await requestDesktop(request, { directory });
+    assert.equal(first.accessEpoch, desktop.status().accessEpoch);
+    await desktop.setPaused(true); await desktop.setPaused(false);
+    await assert.rejects(requestDesktop({ ...request, accessEpoch: first.accessEpoch }, { directory }), error => error.code === 'desktop_paused');
+    assert.equal(calls, 1);
+    await assert.rejects(requestDesktop({ command: 'press-key', trackAccess: true }, { directory }), error => error.code === 'invalid_wait');
+    await assert.rejects(requestDesktop({ command: 'snapshot', trackAccess: true, params: { restoreWindow: true } }, { directory }), error => error.code === 'invalid_wait');
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('tracked reads retain their epoch while an app is absent and reject pause during a read', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-read-paused-'));
+  let entered, release;
+  const reading = new Promise(resolve => { entered = resolve; });
+  const desktop = await startDesktop({ directory, handler: async request => {
+    if (request.command === 'windows') throw Object.assign(new Error('missing fixture'), { code: 'app_not_found' });
+    entered(); await new Promise(resolve => { release = resolve; });
+    return { snapshot: { window: { id: 123 } } };
+  } });
+  try {
+    const absent = await requestDesktop({ command: 'windows', trackAccess: true }, { directory });
+    assert.deepEqual(absent.windows, []);
+    assert.equal(absent.accessEpoch, desktop.status().accessEpoch);
+    const pending = requestDesktop({ command: 'snapshot', trackAccess: true, accessEpoch: absent.accessEpoch }, { directory });
+    const rejected = assert.rejects(pending, error => error.code === 'desktop_paused');
+    await reading;
+    const paused = desktop.setPaused(true);
+    release(); await paused; await rejected;
+  } finally { release?.(); await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});

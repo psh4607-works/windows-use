@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-const { waitFor } = await import('../src/wait-for.mjs').catch(() => ({}));
+import { waitFor } from '../src/wait-for.mjs';
 const match = { index: 3, identity: [1, 3], value: 'ready', sensitive: false };
-const observed = (matches = [match]) => ({ snapshot: { window: { id: 123 } },
+const observed = (matches = [match]) => ({ accessEpoch: 'owner:0', snapshot: { window: { id: 123 } },
   session: { id: 'wait', observation: 'fresh-token' }, query: { matches, matchCount: matches.length, unique: matches.length === 1, complete: true } });
 const request = (params = {}) => ({ command: 'wait-for', session: 'wait', params: { app: 'fixture', role: 'ControlType.Edit', ...params } });
 function fixture(results = [observed()]) {
@@ -13,7 +13,7 @@ function fixture(results = [observed()]) {
     read: async (req, options) => {
       calls.push({ ...req, options });
       if (req.command === 'status') return { state: 'running', accessEpoch: 'owner:0' };
-      if (req.command === 'windows') return { windows: [{ id: 123 }] };
+      if (req.command === 'windows') return { windows: [{ id: 123 }], accessEpoch: 'owner:0' };
       return results[Math.min(reads++, results.length - 1)];
     }
   };
@@ -58,12 +58,12 @@ test('wait-for rejects unbounded or invalid waits before desktop reads', async (
 test('wait-for pins a unique HWND, rejects ambiguity, and stops when that window closes', async () => {
   const ambiguous = fixture();
   const read = ambiguous.read;
-  ambiguous.read = async (req, opts) => req.command === 'windows' ? { windows: [{ id: 123 }, { id: 456 }] } : read(req, opts);
+  ambiguous.read = async (req, opts) => req.command === 'windows' ? { windows: [{ id: 123 }, { id: 456 }], accessEpoch: 'owner:0' } : read(req, opts);
   await assert.rejects(waitFor(request(), ambiguous), error => error.code === 'ambiguous_window');
   const closed = fixture([observed([])]);
   const original = closed.read;
   let count = 0;
-  closed.read = async (req, opts) => req.command === 'windows' ? { windows: ++count === 1 ? [{ id: 123 }] : [{ id: 456 }] } : original(req, opts);
+  closed.read = async (req, opts) => req.command === 'windows' ? { windows: ++count === 1 ? [{ id: 123 }] : [{ id: 456 }], accessEpoch: 'owner:0' } : original(req, opts);
   await assert.rejects(waitFor(request(), closed), error => error.code === 'window_closed');
   assert.equal(closed.calls.filter(call => call.command === 'query').length, 1);
   for (const result of [observed([match, match]), { ...observed(), query: { ...observed().query, complete: false, unique: false } }]) {
@@ -77,8 +77,8 @@ test('window appearance waits through missing apps and returns a fresh observati
   const original = deps.read;
   deps.read = async (req, opts) => {
     if (req.command === 'windows') {
-      if (++windows === 1) throw Object.assign(new Error('missing'), { code: 'app_not_found' });
-      return { windows: [{ id: 123, title: 'Ready' }, { id: 456, title: 'Other' }] };
+      if (++windows === 1) return { windows: [], accessEpoch: 'owner:0' };
+      return { windows: [{ id: 123, title: 'Ready' }, { id: 456, title: 'Other' }], accessEpoch: 'owner:0' };
     }
     if (req.command === 'snapshot') { assert.equal(req.params.windowId, 123); return observed(); }
     return original(req, opts);
@@ -104,19 +104,25 @@ test('value waits compare exact values and changed waits follow native identity 
   }
 });
 
-test('wait-for rejects paused or changed access epochs, including pause-resume between polls', async () => {
-  for (const states of [[{ state: 'paused', accessEpoch: 'owner:1' }],
-    [{ state: 'running', accessEpoch: 'owner:0' }, { state: 'running', accessEpoch: 'owner:2' }]]) {
-    const deps = fixture([observed([])]);
-    let calls = 0;
-    const original = deps.read;
-    deps.read = async (req, opts) => req.command === 'status' ? states[Math.min(calls++, states.length - 1)] : original(req, opts);
-    await assert.rejects(waitFor(request(), deps), error => error.code === 'desktop_paused');
-  }
-  const deps = fixture();
-  const original = deps.read;
-  deps.read = async (req, opts) => req.command === 'status' ? { state: 'running' } : original(req, opts);
-  await assert.rejects(waitFor(request(), deps), error => error.code === 'unsupported_wait');
+test('wait-for rejects paused or changed access epochs, including pause-resume between reads', async () => {
+  const paused = fixture();
+  paused.read = async () => { throw Object.assign(new Error('paused'), { code: 'desktop_paused' }); };
+  await assert.rejects(waitFor(request(), paused), error => error.code === 'desktop_paused');
+  const changed = fixture([observed([])]);
+  const read = changed.read;
+  changed.read = async (req, opts) => {
+    const result = await read(req, opts);
+    return req.command === 'query' ? { ...result, accessEpoch: 'owner:2' } : result;
+  };
+  await assert.rejects(waitFor(request(), changed), error => error.code === 'desktop_paused');
+  const missing = fixture();
+  const original = missing.read;
+  missing.read = async (req, opts) => {
+    const result = await original(req, opts);
+    if (req.command !== 'status') delete result.accessEpoch;
+    return result;
+  };
+  await assert.rejects(waitFor(request(), missing), error => error.code === 'unsupported_wait');
 });
 
 test('deadline and cancellation settle even if an in-flight read never responds', async () => {
@@ -151,4 +157,13 @@ test('window waits return observation metadata without a duplicated tree that ca
   const result = await waitFor(request({ role: undefined, condition: 'window' }), deps);
   assert.equal(result.snapshot.treeText, undefined);
   assert.doesNotMatch(JSON.stringify(result), /secret-label/);
+});
+
+test('wait-for reuses stamped read epochs without standalone status round trips', async () => {
+  const deps = fixture();
+  await waitFor(request(), deps);
+  assert.deepEqual(deps.calls.map(call => call.command), ['windows', 'query']);
+  assert.ok(deps.calls.every(call => call.trackAccess === true));
+  assert.equal(deps.calls[0].accessEpoch, undefined);
+  assert.equal(deps.calls[1].accessEpoch, 'owner:0');
 });

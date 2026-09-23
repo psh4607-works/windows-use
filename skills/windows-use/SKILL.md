@@ -86,7 +86,10 @@ indexes, screenshots and restore-window. Ctrl+C/SIGTERM produces `wait_cancelled
 deadline produces `wait_timeout`; both exit 1 without value previews. A started
 native read may finish after caller cancellation. Pause/resume or server restart
 ends the wait, even if it occurred between polls. Update caller and desktop server
-together: old servers without access epochs fail with `unsupported_wait`.
+together: old servers without stamped read access epochs fail with `unsupported_wait`.
+Each read carries the previous epoch; the server checks it before execution and
+again before returning. Epochs accompany read results, including an absent app,
+so waits need no separate status requests and still reject pause during a read.
 
 ## Recovery
 

@@ -295,10 +295,13 @@ windows-use wait-for --app <pid> --session await-change --name Editor --conditio
 `--timeout-ms`는 1–600000ms(기본 10000), `--poll-ms`는 50–10000ms(기본 250)입니다.
 처음 선택한 HWND를 고정하며 닫히면 다른 창으로 옮겨가지 않습니다. 조건 충족 시 최신
 관찰 토큰을 반환하고, 복수 후보·불완전한 트리·pause/재개·서버 재시작은 오류로 종료합니다.
-호출 측과 Windows 서버를 함께 업데이트해야 합니다. 이전 서버에 접근 세대값이 없으면
+호출 측과 Windows 서버를 함께 업데이트해야 합니다. 이전 서버의 읽기 응답에 접근 세대값이 없으면
 `unsupported_wait`로 실패합니다.
 
 polling은 호출 측에서 개별 읽기 RPC로 수행하여 broker를 대기 시간 동안 점유하지 않습니다.
+각 읽기는 앞서 받은 접근 세대값을 전달하고 서버가 실행 전후에 검사합니다. 이 값은
+읽기 결과와 함께 반환하므로 별도 `status` 왕복은 필요하지 않습니다. 앱이 아직 없는 경우도
+세대값을 유지하여 polling 사이의 pause/재개를 감지합니다.
 입력 재시도는 없습니다. Ctrl+C/SIGTERM은 `wait_cancelled`, deadline 초과는
 `wait_timeout`으로 종료하며 CLI 종료 코드는 1입니다. timeout/취소 오류에는 기대값이나
 마지막 관찰 값을 싣지 않습니다. 취소는 호출 측의 IPC/SSH 요청을 닫지만 이미 시작된
