@@ -59,7 +59,10 @@ test('tracked reads stamp access epochs and reject stale epochs before touching 
     await assert.rejects(requestDesktop({ ...request, accessEpoch: first.accessEpoch }, { directory }), error => error.code === 'desktop_paused');
     assert.equal(calls, 1);
     await assert.rejects(requestDesktop({ command: 'press-key', trackAccess: true }, { directory }), error => error.code === 'invalid_wait');
-    await assert.rejects(requestDesktop({ command: 'snapshot', trackAccess: true, params: { restoreWindow: true } }, { directory }), error => error.code === 'invalid_wait');
+    for (const restoreWindow of [true, 1, 'yes', 'false', {}, null]) {
+      await assert.rejects(requestDesktop({ command: 'snapshot', trackAccess: true, params: { restoreWindow } }, { directory }), error => error.code === 'invalid_wait');
+    }
+    assert.equal(calls, 1);
   } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
 });
 

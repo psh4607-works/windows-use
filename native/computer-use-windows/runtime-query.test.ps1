@@ -1,4 +1,7 @@
 $ErrorActionPreference = 'Stop'
+# Only the UIA pattern constant is replaced; exercise the real value reader.
+Add-Type 'namespace Windows.Automation { public static class ValuePattern { public static readonly object Pattern = new object(); } }'
+$TextLimit = 5
 $source = Get-Content -Raw (Join-Path $PSScriptRoot 'runtime.ps1')
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
@@ -14,20 +17,16 @@ $element = [pscustomobject]@{ Current = [pscustomobject]@{
     IsPassword = $true; AutomationId = 'editor'; Name = 'Field'; LocalizedControlType = 'edit';
     ControlType = [pscustomobject]@{ ProgrammaticName = 'ControlType.Edit' }; NativeWindowHandle = 0; ClassName = 'Edit'
 } }
+$element | Add-Member NoteProperty FixtureValue 'abcdef'
+$element | Add-Member ScriptMethod GetCurrentPattern { param($pattern) [pscustomobject]@{ Current = [pscustomobject]@{ Value = $this.FixtureValue } } }
 $record = New-OrcaElementRecord $element 3 $null
 if ($record.isSensitive -ne $true) { throw 'Query metadata must explicitly mark sensitive UIA controls, even when value is empty.' }
 $element.Current.IsPassword = $false
 $record = New-OrcaElementRecord $element 3 $null
 if ($record.isSensitive -ne $false) { throw 'Ordinary UIA controls must have a false sensitive marker.' }
+if ($record.valueAvailable -ne $true) { throw 'Ordinary record assertions must exercise a configured readable ValuePattern.' }
 if ($record.controlType -ne 'ControlType.Edit' -or $record.automationId -ne 'editor') { throw 'Native query metadata changed.' }
 Write-Output 'runtime-query: passed (isolated metadata fixture; no Windows UI)'
-# Exercise the real value-reader with only the UIA pattern constant replaced.
-Add-Type 'namespace Windows.Automation { public static class ValuePattern { public static readonly object Pattern = new object(); } }'
-$definition = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-OrcaValueText' }, $true)
-Invoke-Expression $definition.Extent.Text
-$TextLimit = 5
-$element | Add-Member NoteProperty FixtureValue 'abcdef'
-$element | Add-Member ScriptMethod GetCurrentPattern { param($pattern) [pscustomobject]@{ Current = [pscustomobject]@{ Value = $this.FixtureValue } } }
 $metadata = Get-OrcaValueText $element -Metadata
 if ($metadata.valueAvailable -ne $true -or $metadata.valueTruncated -ne $true -or $metadata.value -ne 'abcde...') { throw 'Value metadata must distinguish a truncated value.' }
 $element.FixtureValue = ''

@@ -167,3 +167,12 @@ test('wait-for reuses stamped read epochs without standalone status round trips'
   assert.equal(deps.calls[0].accessEpoch, undefined);
   assert.equal(deps.calls[1].accessEpoch, 'owner:0');
 });
+
+test('an old server missing the target app still reports the upgrade guidance before retrying', async () => {
+  let reads = 0;
+  await assert.rejects(waitFor(request(), { read: async () => {
+    reads++;
+    throw Object.assign(new Error('private app missing'), { code: 'app_not_found' });
+  } }), error => error.code === 'unsupported_wait' && /Update the desktop server/.test(error.message));
+  assert.equal(reads, 1);
+});

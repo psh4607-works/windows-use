@@ -43,12 +43,19 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
     } finally { controller.signal.removeEventListener('abort', onAbort); }
   };
   let accessEpoch;
+  const unsupportedWait = () => queryError('unsupported_wait', 'Update the desktop server to support stamped read access epochs.');
   const observe = async req => {
     check();
-    const result = await bounded(() => read({ ...req, trackAccess: true, accessEpoch },
-      { timeoutMs: Math.max(1, Math.ceil(deadline - now())), signal: controller.signal }));
+    let result;
+    try {
+      result = await bounded(() => read({ ...req, trackAccess: true, accessEpoch },
+        { timeoutMs: Math.max(1, Math.ceil(deadline - now())), signal: controller.signal }));
+    } catch (error) {
+      if (req.command === 'windows' && accessEpoch === undefined && error.code === 'app_not_found') throw unsupportedWait();
+      throw error;
+    }
     check();
-    if (typeof result.accessEpoch !== 'string') throw queryError('unsupported_wait', 'Update the desktop server to support stamped read access epochs.');
+    if (typeof result.accessEpoch !== 'string') throw unsupportedWait();
     if (accessEpoch !== undefined && accessEpoch !== result.accessEpoch) {
       throw queryError('desktop_paused', 'Desktop access changed during the wait; start a new wait after resuming.');
     }

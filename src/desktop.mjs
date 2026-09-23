@@ -79,7 +79,8 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
     if (!request || ![...COMMANDS, 'status', 'doctor'].includes(request.command)) throw new Error('Unknown command');
     const diagnostic = ['status', 'doctor'].includes(request.command);
     const tracked = request.trackAccess === true;
-    if (tracked && (!['windows', 'query', 'snapshot'].includes(request.command) || request.params?.restoreWindow === true)) {
+    if (tracked && (!['windows', 'query', 'snapshot'].includes(request.command) ||
+        (request.params?.restoreWindow !== undefined && request.params.restoreWindow !== false))) {
       throw Object.assign(new Error('Access tracking is only supported for reads without focus changes.'), { code: 'invalid_wait' });
     }
     if (paused && !diagnostic) rejectPaused();
