@@ -38,15 +38,15 @@ Mac/Linux에서 저장소를 내려받아 패키지를 만듭니다. 아래 예�
 git clone https://github.com/psh4607/windows-use.git
 cd windows-use
 npm ci
-npm run build
 npm pack
 npm install --global ./psh4607-windows-use-0.2.0.tgz
 windows-use --help
 ```
 
-`npm pack` 결과에는 실행 파일, 생성된 provider, Windows 스크립트, 스킬, 문서와
+`npm pack`은 provider를 자동으로 빌드합니다. 결과에는 실행 파일, 생성된 provider, Windows 스크립트, 스킬, 문서와
 라이선스가 포함됩니다. 에이전트가 사용하는 셸에서도 `windows-use --help`가 실행되는지
 확인하세요. 전역 설치 대신 저장소의 CLI를 직접 실행할 수도 있습니다.
+`npm pack`을 실행하지 않았다면 `npm ci` 후 `npm run build`를 먼저 실행하세요.
 
 ```sh
 node ./bin/windows-use.mjs --help
@@ -380,6 +380,11 @@ COM 마샬링과 실제 Windows UI 연동은 위의 Windows 회귀 테스트로 
 패키지를 갱신하면 CLI와 에이전트에 복사한 스킬도 함께 갱신하세요. 변경 검증에는
 `npm run build`, `npm test`, `npm run test:bridge`를 사용합니다. Windows 실행에 영향을
 주는 변경은 로그인된 Windows 데스크톱에서 별도로 확인하세요.
+
+`bin/`은 실행 진입점 소스이므로 Git으로 관리합니다. `dist/`는 `vendor/orca/`의 소스로
+생성하는 빌드 결과물이므로 Git 추적에서 제외하고 배포 패키지에만 포함합니다.
+`npm test`와 `npm pack`은 실행 전에 provider를 자동으로 다시 빌드하며,
+`npm run package:windows`도 패키징 과정에서 빌드합니다.
 
 이 프로젝트는 MIT 라이선스로 배포합니다. 라이선스와 포함된 코드의 출처는
 [LICENSE](LICENSE), [NOTICE.md](NOTICE.md), [provenance.json](provenance.json)에 기록합니다.
