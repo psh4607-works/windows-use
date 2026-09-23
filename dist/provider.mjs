@@ -54,7 +54,11 @@ function redactStrings(value, secrets) {
   let text = value;
   for (const secret of [...new Set(secrets.filter((secret2) => secret2 && secret2 !== REDACTED))].sort((a, b) => b.length - a.length)) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = Array.from(secret).length < 4 ? new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "gu") : new RegExp(escaped, "gu");
+    const characters = Array.from(secret);
+    const short = characters.length < 4;
+    const before = short && /[\p{L}\p{N}_]/u.test(characters[0]) ? "(?<![\\p{L}\\p{N}_])" : "";
+    const after = short && /[\p{L}\p{N}_]/u.test(characters.at(-1)) ? "(?![\\p{L}\\p{N}_])" : "";
+    const pattern = new RegExp(`${before}${escaped}${after}`, "gu");
     text = text.split(REDACTED).map((part) => part.replace(pattern, () => REDACTED)).join(REDACTED);
   }
   return text;
@@ -80,14 +84,16 @@ function sanitizeResponse(response, secrets = []) {
       snapshot.focusedSummary = null;
       snapshot.screenshotPngBase64 = null;
       snapshot.screenshotError = { message: "Screenshot withheld for sensitive observation" };
-      if (clean.action?.verification) {
-        const verification = clean.action.verification;
-        if ("expected" in verification) verification.expected = REDACTED;
-        if ("actualPreview" in verification) verification.actualPreview = REDACTED;
-      }
     }
   }
-  if (clean.action) clean.action.fallbackReason = redactStrings(clean.action.fallbackReason, needles);
+  if (clean.action) {
+    clean.action.fallbackReason = redactStrings(clean.action.fallbackReason, needles);
+    if ((sensitive.length || secrets.length) && clean.action.verification) {
+      const verification = clean.action.verification;
+      if ("expected" in verification) verification.expected = REDACTED;
+      if ("actualPreview" in verification) verification.actualPreview = REDACTED;
+    }
+  }
   return clean;
 }
 

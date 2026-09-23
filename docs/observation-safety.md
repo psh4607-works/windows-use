@@ -88,7 +88,8 @@ by the existing bridge cleanup.
 For sensitive observations, unstructured selection/focus summaries and screenshots
 are withheld because they lack field-level provenance. Sensitive values and their rendered tree rows are redacted structurally. App/element
 selectors and protocol fields stay unchanged; free-text redaction matches short
-inputs (under four Unicode characters) only as whole tokens, preserving unrelated
+inputs (under four Unicode characters) with boundaries at letter/digit/underscore
+edges, preserving unrelated
 words and existing redaction markers. Native classification cannot detect every
 secret in an arbitrary third-party application. Ordinary values still support verification.
 
