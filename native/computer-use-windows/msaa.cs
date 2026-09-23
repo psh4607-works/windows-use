@@ -12,7 +12,7 @@ public sealed class OrcaMsaaNode {
     public int index, depth;
     public int[] runtimeId;
     public string automationId = "", name, controlType, localizedControlType, className = "MSAA", value;
-    public bool isSelected, isFocused;
+    public bool isSelected, isFocused, isSensitive;
     public long nativeWindowHandle;
     public OrcaMsaaFrame frame;
     public string[] actions;
@@ -144,7 +144,7 @@ public static class OrcaMsaa {
                 return width > 0 && height > 0 ? new OrcaMsaaFrame { x = x - left, y = y - top, width = width, height = height } : null;
             }, null);
             nodes.Add(new OrcaMsaaNode {
-                index = nodes.Count, depth = depth, runtimeId = identity, name = name, value = value,
+                index = nodes.Count, depth = depth, runtimeId = identity, name = name, value = value, isSensitive = sensitiveValue,
                 // Keep custom strings distinct from system constants, including strings like "42".
                 controlType = customRole == null ? "MSAA." + role : "MSAA.custom." + customRole,
                 localizedControlType = Limit(roleName, textLimit),

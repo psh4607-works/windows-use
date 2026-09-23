@@ -177,3 +177,38 @@ Assert-Test ($custom.ValueReads -eq 0 -and $tree.elements[0].actions -notcontain
 $observed = $tree.elements[0]; $custom.Role = 42
 Assert-Stale (Read-Fixture $custom) $observed
 Write-Output 'PASS: custom string roles preserve traversal/actions and remain distinct from integer roles'
+
+$field = [IdentifiedMsaaFixture]::new(); $field.ObjectId = 70; $field.Role = 42; $field.Name = 'Password'
+Assert-Test ((Read-Fixture $field).elements[0].isSensitive -eq $true) 'MSAA sensitivity metadata missing from observation'
+$field.Name = 'Account name'; $field.Value = '[redacted]'
+Assert-Test ((Read-Fixture $field).elements[0].isSensitive -eq $false) 'Literal display value was mistaken for sensitivity metadata'
+# Exercise the real UIA record builder with only OS-dependent accessors stubbed.
+foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+    if ($definition.Name -eq 'New-OrcaElementRecord') { Invoke-Expression $definition.Extent.Text }
+}
+function Get-OrcaRuntimeId($Element) { @(42, 88) }
+function Get-OrcaValueText($Element) { if (Test-OrcaSensitiveElement $Element) { '[redacted]' } else { 'public' } }
+function Test-OrcaElementSelected($Element) { $false }
+function Get-OrcaElementFrame($Element, $WindowFrame) { $null }
+function Get-OrcaActions($Element) { @('SetValue') }
+$uia.Current.Name = 'Password'
+Assert-Test ((New-OrcaElementRecord $uia 2 $null).isSensitive -eq $true) 'UIA sensitivity metadata missing from observation'
+$uia.Current.Name = 'Account name'
+Assert-Test ((New-OrcaElementRecord $uia 2 $null).isSensitive -eq $false) 'UIA ordinary record marked sensitive'
+Write-Output 'PASS: UIA/MSAA serialized records carry explicit sensitivity metadata'
+
+# Real record/value functions must share one classification (including its decision).
+foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+    if ($definition.Name -eq 'Get-OrcaValueText') { Invoke-Expression $definition.Extent.Text }
+}
+$script:sensitivityReads = 0
+$script:classifyElement = ${function:Test-OrcaSensitiveElement}
+function Test-OrcaSensitiveElement($Element) { $script:sensitivityReads++; & $script:classifyElement $Element }
+$uia.Current.Name = 'Password'
+$record = New-OrcaElementRecord $uia 2 $null
+Assert-Test ($script:sensitivityReads -eq 1) 'UIA record/value read classified the same element more than once'
+Assert-Test ($record.isSensitive -and $record.value -eq '[redacted]') 'Precomputed classification failed to protect the value'
+$script:sensitivityReads = 0
+$null = Get-OrcaValueText $uia
+Assert-Test ($script:sensitivityReads -eq 1) 'Standalone value reads must still classify when no flag is supplied'
+Write-Output 'PASS: UIA record/value share one classification; standalone callers remain protected'

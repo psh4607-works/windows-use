@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { startBroker, callBroker } from './broker.mjs';
 import { COMMANDS, executeRequest } from './request.mjs';
+import { lockObservations } from './observation-revision.mjs';
 import { acquireRecoveryLock } from './recovery-lock.mjs';
 
 const defaultDirectory = () => process.env.WINDOWS_USE_HOME || join(homedir(), '.windows-use');
@@ -52,8 +53,11 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
   const idleWaiters = new Set();
   const stateDir = join(directory, 'state');
   const clearObservations = async () => {
-    await rm(stateDir, { recursive: true, force: true });
-    await mkdir(stateDir, { recursive: true, mode: 0o700 });
+    const release = await lockObservations(stateDir);
+    try {
+      await rm(stateDir, { recursive: true, force: true });
+      await mkdir(stateDir, { recursive: true, mode: 0o700 });
+    } finally { await release(); }
   };
   const status = () => ({ state: paused ? 'paused' : 'running', activeRequests, pid: process.pid });
   const execute = handler ?? (request => executeRequest(request, { stateDir }));

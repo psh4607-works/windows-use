@@ -560,9 +560,10 @@ function Test-OrcaSensitiveElement($Element) {
     $haystack -match "(^|[^a-z0-9])pin([^a-z0-9]|$)"
 }
 
-function Get-OrcaValueText($Element) {
+function Get-OrcaValueText($Element, [Nullable[bool]]$IsSensitive = $null) {
     try {
-        if (Test-OrcaSensitiveElement $Element) { return "[redacted]" }
+        if ($null -eq $IsSensitive) { $IsSensitive = [bool](Test-OrcaSensitiveElement $Element) }
+        if ($IsSensitive) { return "[redacted]" }
         $pattern = $Element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
         $rawValue = $pattern.Current.Value
         $text = if ($null -eq $rawValue) { "" } else { [string]$rawValue }
@@ -675,6 +676,7 @@ function Test-OrcaPlainTextSubtree($Element, [int]$MaxDepth = 4) {
 }
 
 function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
+    $isSensitive = [bool](Test-OrcaSensitiveElement $Element)
     $controlType = try { [string]$Element.Current.ControlType.ProgrammaticName } catch { "" }
     $nativeWindowHandle = try { [int64]$Element.Current.NativeWindowHandle } catch { 0 }
     [pscustomobject]@{
@@ -685,7 +687,8 @@ function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
         controlType = $controlType
         localizedControlType = Get-OrcaProperty $Element "LocalizedControlType"
         className = Get-OrcaProperty $Element "ClassName"
-        value = Get-OrcaValueText $Element
+        isSensitive = $isSensitive
+        value = Get-OrcaValueText $Element $isSensitive
         isSelected = Test-OrcaElementSelected $Element
         nativeWindowHandle = $nativeWindowHandle
         frame = Get-OrcaElementFrame $Element $WindowFrame
