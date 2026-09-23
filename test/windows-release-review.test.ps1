@@ -29,16 +29,18 @@ try {
     $c.settingsHash=Get-ReleaseHash (Join-Path $c.home 'settings.json')
     Test-ReleaseUninstalled $c
     Expect-Code { Test-ReleaseInstalled $c previous } 'package_owner_missing'
-} finally { Remove-Item $work -Recurse -Force }
+} finally { if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force } }
 foreach ($code in @('package_owner_missing','user_data_not_preserved','uninstall_removed_user_data','private path must be omitted')) {
     $actions=@{ preflight={param($context,$phase) throw $context.failure}; cleanup={ @{status='passed';code='verified'} } }
     $report=Invoke-ReleasePlan -Context @{ failure=$code } -Actions $actions -Evidence fixture
     $expected=if ($code -like 'private*') {'step_failed'} else {$code}
     Assert ($report.steps[0].code -ceq $expected) 'Known failure lost or raw exception leaked into report.'
 }
-foreach ($paths in @(@(),@($null),@(''),@('../escape'),@('valid','valid'))) {
+foreach ($paths in @(@(),@($null),@(''),@('../escape'))) {
     Expect-Code { Assert-ReleasePayloadPaths $paths 1 } 'invalid_checkpoint_paths'
 }
+Expect-Code { Assert-ReleasePayloadPaths @('valid','valid') 2 } 'invalid_checkpoint_paths'
+Expect-Code { Assert-ReleasePayloadPaths @('valid','VALID') 2 } 'invalid_checkpoint_paths'
 Assert-ReleasePayloadPaths @('runtime/node.exe','.windows-use-client') 2
 Expect-Code { Assert-ReleasePayloadPaths @('runtime/node.exe') 2 } 'invalid_checkpoint_paths'
 $fixture=[pscustomobject]@{ HasExited=$false; refreshed=$false; closeCalls=0 }
