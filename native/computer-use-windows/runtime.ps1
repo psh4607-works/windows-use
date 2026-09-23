@@ -560,8 +560,9 @@ function Test-OrcaSensitiveElement($Element) {
     $haystack -match "(^|[^a-z0-9])pin([^a-z0-9]|$)"
 }
 
-function Get-OrcaValueText($Element, [switch]$Metadata) {
-    $result = [pscustomobject]@{ value = ""; valueAvailable = $false; valueTruncated = $false; isSensitive = [bool](Test-OrcaSensitiveElement $Element) }
+function Get-OrcaValueText($Element, [Nullable[bool]]$IsSensitive = $null, [switch]$Metadata) {
+    if ($null -eq $IsSensitive) { $IsSensitive = [bool](Test-OrcaSensitiveElement $Element) }
+    $result = [pscustomobject]@{ value = ""; valueAvailable = $false; valueTruncated = $false; isSensitive = [bool]$IsSensitive }
     try {
         if ($result.isSensitive) { $result.value = "[redacted]" }
         else {
@@ -679,9 +680,10 @@ function Test-OrcaPlainTextSubtree($Element, [int]$MaxDepth = 4) {
 }
 
 function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
+    $isSensitive = [bool](Test-OrcaSensitiveElement $Element)
     $controlType = try { [string]$Element.Current.ControlType.ProgrammaticName } catch { "" }
     $nativeWindowHandle = try { [int64]$Element.Current.NativeWindowHandle } catch { 0 }
-    $valueMetadata = Get-OrcaValueText $Element -Metadata
+    $valueMetadata = Get-OrcaValueText $Element $isSensitive -Metadata
     [pscustomobject]@{
         index = $Index
         runtimeId = @(Get-OrcaRuntimeId $Element)
@@ -693,7 +695,7 @@ function New-OrcaElementRecord($Element, [int]$Index, $WindowFrame) {
         value = $valueMetadata.value
         valueAvailable = $valueMetadata.valueAvailable
         valueTruncated = $valueMetadata.valueTruncated
-        isSensitive = $valueMetadata.isSensitive
+        isSensitive = $isSensitive
         isSelected = Test-OrcaElementSelected $Element
         nativeWindowHandle = $nativeWindowHandle
         frame = Get-OrcaElementFrame $Element $WindowFrame

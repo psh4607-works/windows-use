@@ -30,6 +30,73 @@ function optionalNumberParam(params, key) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
 
+// vendor/orca/src/main/computer/desktop-script-observation-safety.ts
+var REDACTED = "[redacted]";
+function sensitiveElement(element) {
+  return element?.isSensitive === true || element?.isSensitive !== false && element?.value === REDACTED;
+}
+function refreshedElement(snapshot, target) {
+  if (!target) return void 0;
+  const hasRuntimeId = Array.isArray(target.runtimeId) && target.runtimeId.length > 0;
+  const matches = (snapshot?.elements ?? []).filter((element) => {
+    if (hasRuntimeId) return JSON.stringify(element.runtimeId) === JSON.stringify(target.runtimeId);
+    if (target.automationId) return element.automationId === target.automationId;
+    return false;
+  });
+  return matches.length === 1 ? matches[0] : void 0;
+}
+function sensitiveAction(snapshot, target) {
+  const refreshed = refreshedElement(snapshot, target);
+  return sensitiveElement(target) || sensitiveElement(refreshed) || !refreshed && (snapshot?.elements ?? []).some(sensitiveElement);
+}
+function redactStrings(value, secrets) {
+  if (typeof value !== "string") return value;
+  let text = value;
+  for (const secret of [...new Set(secrets.filter((secret2) => secret2 && /\S/u.test(secret2) && secret2 !== REDACTED))].sort((a, b) => b.length - a.length)) {
+    const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const characters = Array.from(secret);
+    const short = characters.length < 4;
+    const before = short && /[\p{L}\p{N}_]/u.test(characters[0]) ? "(?<![\\p{L}\\p{N}_])" : "";
+    const after = short && /[\p{L}\p{N}_]/u.test(characters.at(-1)) ? "(?![\\p{L}\\p{N}_])" : "";
+    const pattern = new RegExp(`${before}${escaped}${after}`, "gu");
+    text = text.split(REDACTED).map((part) => part.replace(pattern, () => REDACTED)).join(REDACTED);
+  }
+  return text;
+}
+function sanitizeResponse(response, secrets = []) {
+  const sensitive = (response.snapshot?.elements ?? []).filter(sensitiveElement);
+  const needles = [...secrets, ...sensitive.map((element) => element.value ?? "")];
+  const clean = structuredClone(response);
+  if (clean.snapshot) {
+    const snapshot = clean.snapshot;
+    snapshot.elements = snapshot.elements?.map((element) => sensitiveElement(element) ? { ...element, isSensitive: true, value: REDACTED } : { ...element, value: redactStrings(element.value, needles) });
+    const sensitiveIndexes = new Set(sensitive.map((element) => element.index));
+    snapshot.treeLines = snapshot.treeLines?.map((line) => {
+      const indexed = /^(\s*\d+)(\s+)([\s\S]*)$/.exec(line);
+      if (!indexed) return redactStrings(line, needles);
+      if (sensitiveIndexes.has(Number(indexed[1].trim()))) return `${indexed[1]} ${REDACTED}`;
+      return `${indexed[1]}${indexed[2]}${redactStrings(indexed[3], needles)}`;
+    });
+    snapshot.windowTitle = redactStrings(snapshot.windowTitle, needles);
+    if (snapshot.screenshotError) snapshot.screenshotError.message = redactStrings(snapshot.screenshotError.message, needles);
+    if (sensitive.length || secrets.length) {
+      snapshot.selectedText = null;
+      snapshot.focusedSummary = null;
+      snapshot.screenshotPngBase64 = null;
+      snapshot.screenshotError = { message: "Screenshot withheld for sensitive observation" };
+    }
+  }
+  if (clean.action) {
+    clean.action.fallbackReason = redactStrings(clean.action.fallbackReason, needles);
+    if ((sensitive.length || secrets.length) && clean.action.verification) {
+      const verification = clean.action.verification;
+      if ("expected" in verification) verification.expected = REDACTED;
+      if ("actualPreview" in verification) verification.actualPreview = REDACTED;
+    }
+  }
+  return clean;
+}
+
 // vendor/orca/src/main/computer/desktop-script-action.ts
 function bridgeTool(method) {
   return {
@@ -74,6 +141,9 @@ function desktopActionMetadata(method, targetWindowId, targetWindowIndex) {
 }
 function desktopActionWindowTarget(explicitWindowId, explicitWindowIndex, current) {
   if (explicitWindowId !== void 0) {
+    if (current?.windowId !== explicitWindowId) {
+      throw new RuntimeClientError("window_not_found", "Take a fresh snapshot of this window handle before acting");
+    }
     return { windowId: explicitWindowId };
   }
   if (explicitWindowIndex !== void 0) {
@@ -88,7 +158,7 @@ function desktopActionWindowTarget(explicitWindowId, explicitWindowIndex, curren
   if (current?.windowIndex !== null && current?.windowIndex !== void 0) {
     throw new RuntimeClientError("window_not_found", "Take a fresh snapshot with a window handle before acting");
   }
-  return {};
+  throw new RuntimeClientError("window_not_found", "Take a fresh snapshot with a window handle before acting");
 }
 function desktopActionMetadataFromResponse(action, method, targetWindowId, targetWindowIndex) {
   return action ? {
@@ -97,8 +167,14 @@ function desktopActionMetadataFromResponse(action, method, targetWindowId, targe
     targetWindowIndex: action.targetWindowIndex ?? targetWindowIndex
   } : desktopActionMetadata(method, targetWindowId, targetWindowIndex);
 }
-function verifyDesktopAction(action, method, params, rawAction, snapshot, targetElement) {
-  if (rawAction?.verification) {
+function verifyDesktopAction(action, method, params, rawAction, snapshot, targetElement, observedWindowId) {
+  if (isWindowChangedAction(action) || snapshot?.windowId !== void 0 && snapshot.windowId !== observedWindowId) {
+    return { ...action, verification: { state: "unverified", reason: "window_changed" } };
+  }
+  if (method === "setValue" && sensitiveAction(snapshot, targetElement)) {
+    return { ...action, verification: { state: "unverified", reason: "sensitive_value", expected: REDACTED, actualPreview: REDACTED } };
+  }
+  if (rawAction?.verification && (method !== "setValue" || rawAction.verification.state === "unverified")) {
     return action;
   }
   if (method === "typeText" || method === "pressKey" || method === "hotkey") {
@@ -121,7 +197,7 @@ function verifyDesktopAction(action, method, params, rawAction, snapshot, target
   if (expected === void 0 || elementIndex === void 0) {
     return action;
   }
-  const actual = refreshedElementValue(snapshot, targetElement, elementIndex);
+  const actual = refreshedElement(snapshot, targetElement)?.value;
   if (actual === expected) {
     return {
       ...action,
@@ -137,23 +213,6 @@ function verifyDesktopAction(action, method, params, rawAction, snapshot, target
       actualPreview: actual ?? null
     }
   };
-}
-function refreshedElementValue(snapshot, targetElement, fallbackIndex) {
-  const elements = snapshot?.elements ?? [];
-  const identityMatch = targetElement ? elements.find((element) => sameElementIdentity(element, targetElement)) : void 0;
-  return (identityMatch ?? elements.find((element) => element.index === fallbackIndex))?.value;
-}
-function sameElementIdentity(left, right) {
-  if (left.runtimeId !== void 0 && right.runtimeId !== void 0) {
-    return stableIdentityKey(left.runtimeId) === stableIdentityKey(right.runtimeId);
-  }
-  if (left.automationId && right.automationId) {
-    return left.automationId === right.automationId;
-  }
-  return false;
-}
-function stableIdentityKey(value) {
-  return JSON.stringify(value) ?? String(value);
 }
 function cacheParamsForActionResult(params, action) {
   if (!isWindowChangedAction(action)) {
@@ -1486,7 +1545,9 @@ var DesktopScriptProviderClient = class {
     const fromElement = elementParam(current, optionalNumberParam(params, "fromElementIndex"));
     const toElement = elementParam(current, optionalNumberParam(params, "toElementIndex"));
     await this.ensureActionSupported(method);
-    const response = await this.callBridge({
+    const inputStrings = [optionalStringParam(params, "value"), optionalStringParam(params, "text")].filter((value) => Boolean(value));
+    const sensitiveBefore = sensitiveAction(current ?? void 0, element);
+    let response = await this.callBridge({
       tool: bridgeTool(method),
       app,
       accessibility: optionalStringParam(params, "accessibility"),
@@ -1512,19 +1573,24 @@ var DesktopScriptProviderClient = class {
       ...actionWindowTarget,
       noScreenshot: params.noScreenshot === true,
       restoreWindow: params.restoreWindow === true
+    }).catch((error) => {
+      throw new RuntimeClientError(error.code ?? "accessibility_error", redactStrings(String(error.message), inputStrings));
     });
+    const sensitiveAfter = sensitiveAction(response.snapshot, element);
+    response = sanitizeResponse(response, sensitiveBefore || sensitiveAfter ? inputStrings : []);
     const action = verifyDesktopAction(
       desktopActionMetadataFromResponse(
         response.action,
         method,
-        response.snapshot?.windowId ?? current?.windowId ?? null,
+        actionWindowTarget.windowId ?? null,
         response.snapshot?.windowIndex ?? current?.windowIndex ?? null
       ),
       method,
       params,
       response.action,
       response.snapshot,
-      element
+      element,
+      actionWindowTarget.windowId
     );
     if (isWindowChangedAction(action)) {
       this.snapshotStore.forgetWindowTarget(app, params, current);
@@ -1594,8 +1660,9 @@ var DesktopScriptProviderClient = class {
     if (!response.snapshot) {
       throw new RuntimeClientError("accessibility_error", "desktop provider returned no snapshot");
     }
-    this.snapshotStore.remember(app, response.snapshot, params);
-    return renderSnapshot(response.snapshot, noScreenshot);
+    const safe = sanitizeResponse(response).snapshot;
+    this.snapshotStore.remember(app, safe, params);
+    return renderSnapshot(safe, noScreenshot);
   }
 };
 function requiredPlatform() {

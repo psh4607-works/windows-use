@@ -170,21 +170,21 @@
   "localModifications": [
     {
       "path": "native/computer-use-windows/runtime.ps1",
-      "bytes": 63704,
-      "sha256": "2cc4ac0aef9fc6c6d47d3da0a6966be7c62b03c64f1b0c1df3ac61bc9f523158",
-      "reason": "Preserve Unicode via PostMessageW; support F1-F16, enumerate and validate owned popup windows, and provide explicitly selected MSAA observation and actions. Expose sensitivity, value availability and truncation for exact query/wait conditions."
+      "bytes": 63873,
+      "sha256": "b02f244578aff6ac737f074e678690ba92961c5fafc083cffcbab9515c456383",
+      "reason": "Preserve Unicode via PostMessageW; support F1-F16, owned popup windows and explicit MSAA; classify UIA sensitivity once per record and expose sensitivity, value availability and truncation for exact query/wait conditions."
     },
     {
       "path": "vendor/orca/src/main/computer/desktop-script-provider-client.ts",
-      "bytes": 10355,
-      "sha256": "623726f2074b22bcc0a2303522424ce0a72e863a5857abcc4f10b49548654822",
-      "reason": "Forward the explicitly selected accessibility backend to Windows snapshot and action requests."
+      "bytes": 11121,
+      "sha256": "2f4967eba1209b3edd9459ae9c63701f82619b6c7f7bee978cc29348f0b33f90",
+      "reason": "Forward accessibility backend; sanitize sensitive native observations, verification and bridge errors before rendering or persistence."
     },
     {
       "path": "vendor/orca/src/main/computer/desktop-script-action.ts",
-      "bytes": 7366,
-      "sha256": "bbadbd209796726a840dbda7a6aac4dfb3c2b050fe1972a2b4a6696645a5d258",
-      "reason": "Pin indexed actions to the observed HWND and reject indexed actions without an observed handle."
+      "bytes": 7202,
+      "sha256": "f6becce2a3cbcfecbf3efa59e1596f26211939f330c081ee52b78791b1a93264",
+      "reason": "Require observed HWNDs for input and unique element identity for value verification; redact sensitive verification values."
     }
   ]
 }

@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { lockObservations, readInputRevision, advanceInputRevision, validateObservationState } from './observation-revision.mjs';
 import { DesktopScriptProviderClient } from '../dist/provider.mjs';
 import { observeQuery } from './query.mjs';
 
@@ -37,17 +38,19 @@ export async function executeRequest(request, {
 
   await mkdir(stateDir, { recursive: true, mode: 0o700 });
   const statePath = join(stateDir, `${request.session}.json`);
-  const lockPath = join(stateDir, `${request.session}.lock`);
-  let lock;
-  try { lock = await open(lockPath, 'wx', 0o600); }
-  catch (error) { if (error.code === 'EEXIST') throw new Error('Session is busy; use a separate session for parallel work.'); throw error; }
-  let provider;
+  const release = await lockObservations(stateDir);
+  const sessionLockPath = join(stateDir, `${request.session}.lock`);
+  let sessionLock, provider;
   try {
+    try { sessionLock = await open(sessionLockPath, 'wx', 0o600); }
+    catch (error) { if (error.code === 'EEXIST') throw new Error('Session is busy; wait for its active owner.'); throw error; }
+    let inputRevision = await readInputRevision(stateDir, observing);
     provider = providerFactory();
     if (!observing) {
       let saved;
       try { saved = JSON.parse(await readFile(statePath, 'utf8')); }
-      catch (error) { if (error.code === 'ENOENT') throw new Error('Take a snapshot in this session before acting.'); throw error; }
+      catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) throw new Error('Take a fresh snapshot in this session before acting.'); throw error; }
+      validateObservationState(saved, inputRevision);
       if (saved.expiresAt <= now()) throw new Error('Snapshot expired; take a fresh snapshot.');
       if (!request.observation || request.observation !== saved.observation) throw new Error('Observation changed or is missing; use the latest observation token.');
       if (params.app !== saved.app) throw new Error('Snapshot belongs to a different app; take a fresh snapshot.');
@@ -69,7 +72,10 @@ export async function executeRequest(request, {
     if (request.command === 'click') { params.clickCount ??= 1; params.mouseButton ??= 'left'; }
     if (request.command === 'scroll') params.pages ??= 1;
     // Consume the observation before input: a lost response must not permit replay.
-    if (!observing) await rm(statePath, { force: true });
+    if (!observing || params.restoreWindow === true) {
+      inputRevision = await advanceInputRevision(stateDir);
+      await rm(statePath, { force: true });
+    }
     const result = request.command === 'query' ? await observeQuery(provider, params) : request.command === 'snapshot'
       ? await provider.snapshot(params)
       : await provider.action(method, params);
@@ -78,13 +84,15 @@ export async function executeRequest(request, {
     const snapshots = [...provider.snapshots].map(([key, snapshot]) => [key, { ...snapshot, screenshotPngBase64: null }]);
     const temporary = `${statePath}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temporary, JSON.stringify({ app: params.app, accessibility: params.accessibility, observation, expiresAt, snapshots }), { mode: 0o600, flag: 'wx' });
+      await writeFile(temporary, JSON.stringify({ version: 2, inputRevision, app: params.app, accessibility: params.accessibility, observation, expiresAt, snapshots }), { mode: 0o600, flag: 'wx' });
       await rename(temporary, statePath);
     } finally { await rm(temporary, { force: true }); }
     return { ...result, session: { id: request.session, observation, expiresAt, accessibility: params.accessibility } };
   } finally {
-    provider?.shutdown();
-    await lock.close();
-    await rm(lockPath, { force: true });
+    try { provider?.shutdown(); }
+    finally {
+      try { if (sessionLock) { await sessionLock.close(); await rm(sessionLockPath, { force: true }); } }
+      finally { await release(); }
+    }
   }
 }

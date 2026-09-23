@@ -38,6 +38,7 @@ import type {
 import { DesktopScriptSnapshotStore } from './desktop-script-snapshot-store'
 import { normalizeBridgeApp, renderSnapshot } from './desktop-script-snapshot-rendering'
 import { normalizeComputerActionResult } from './computer-action-verification-normalization'
+import { redactStrings, sanitizeResponse, sensitiveAction } from './desktop-script-observation-safety'
 import { RuntimeClientError } from './runtime-client-error'
 import { WindowsFocusHelperClient } from './windows-focus-helper-client'
 import {
@@ -155,7 +156,9 @@ export class DesktopScriptProviderClient {
     const fromElement = elementParam(current, optionalNumberParam(params, 'fromElementIndex'))
     const toElement = elementParam(current, optionalNumberParam(params, 'toElementIndex'))
     await this.ensureActionSupported(method)
-    const response = await this.callBridge({
+    const inputStrings = [optionalStringParam(params, 'value'), optionalStringParam(params, 'text')].filter((value): value is string => Boolean(value))
+    const sensitiveBefore = sensitiveAction(current ?? undefined, element)
+    let response = await this.callBridge({
       tool: bridgeTool(method),
       app,
       accessibility: optionalStringParam(params, 'accessibility'),
@@ -181,19 +184,25 @@ export class DesktopScriptProviderClient {
       ...actionWindowTarget,
       noScreenshot: params.noScreenshot === true,
       restoreWindow: params.restoreWindow === true
+    }).catch(error => {
+      // Bridge failures may echo input even when native classification failed.
+      throw new RuntimeClientError(error.code ?? 'accessibility_error', redactStrings(String(error.message), inputStrings))
     })
+    const sensitiveAfter = sensitiveAction(response.snapshot, element)
+    response = sanitizeResponse(response, sensitiveBefore || sensitiveAfter ? inputStrings : [])
     const action = verifyDesktopAction(
       desktopActionMetadataFromResponse(
         response.action,
         method,
-        response.snapshot?.windowId ?? current?.windowId ?? null,
+        actionWindowTarget.windowId ?? null,
         response.snapshot?.windowIndex ?? current?.windowIndex ?? null
       ),
       method,
       params,
       response.action,
       response.snapshot,
-      element
+      element,
+      actionWindowTarget.windowId
     )
     if (isWindowChangedAction(action)) {
       this.snapshotStore.forgetWindowTarget(app, params, current)
@@ -272,8 +281,9 @@ export class DesktopScriptProviderClient {
     if (!response.snapshot) {
       throw new RuntimeClientError('accessibility_error', 'desktop provider returned no snapshot')
     }
-    this.snapshotStore.remember(app, response.snapshot, params)
-    return renderSnapshot(response.snapshot, noScreenshot)
+    const safe = sanitizeResponse(response).snapshot!
+    this.snapshotStore.remember(app, safe, params)
+    return renderSnapshot(safe, noScreenshot)
   }
 }
 
