@@ -52,7 +52,7 @@ function sensitiveAction(snapshot, target) {
 function redactStrings(value, secrets) {
   if (typeof value !== "string") return value;
   let text = value;
-  for (const secret of [...new Set(secrets.filter((secret2) => secret2 && secret2 !== REDACTED))].sort((a, b) => b.length - a.length)) {
+  for (const secret of [...new Set(secrets.filter((secret2) => secret2 && /\S/u.test(secret2) && secret2 !== REDACTED))].sort((a, b) => b.length - a.length)) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const characters = Array.from(secret);
     const short = characters.length < 4;
@@ -72,7 +72,7 @@ function sanitizeResponse(response, secrets = []) {
     snapshot.elements = snapshot.elements?.map((element) => sensitiveElement(element) ? { ...element, isSensitive: true, value: REDACTED } : { ...element, value: redactStrings(element.value, needles) });
     const sensitiveIndexes = new Set(sensitive.map((element) => element.index));
     snapshot.treeLines = snapshot.treeLines?.map((line) => {
-      const indexed = /^(\s*\d+)(\s+)(.*)$/.exec(line);
+      const indexed = /^(\s*\d+)(\s+)([\s\S]*)$/.exec(line);
       if (!indexed) return redactStrings(line, needles);
       if (sensitiveIndexes.has(Number(indexed[1].trim()))) return `${indexed[1]} ${REDACTED}`;
       return `${indexed[1]}${indexed[2]}${redactStrings(indexed[3], needles)}`;

@@ -90,7 +90,9 @@ are withheld because they lack field-level provenance. Sensitive values and thei
 selectors and protocol fields stay unchanged; free-text redaction matches short
 inputs (under four Unicode characters) with boundaries at letter/digit/underscore
 edges, preserving unrelated
-words and existing redaction markers. Native classification cannot detect every
+words and existing redaction markers. Whitespace-only needles are skipped in
+free text while sensitive values/rows and verification remain structurally redacted.
+Native classification cannot detect every
 secret in an arbitrary third-party application. Ordinary values still support verification.
 
 ## Verification scope

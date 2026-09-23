@@ -30,7 +30,7 @@ export function sensitiveAction(snapshot: BridgeSnapshot | undefined, target: Br
 export function redactStrings<T>(value: T, secrets: string[]): T {
   if (typeof value !== 'string') return value
   let text: string = value
-  for (const secret of [...new Set(secrets.filter(secret => secret && secret !== REDACTED))].sort((a, b) => b.length - a.length)) {
+  for (const secret of [...new Set(secrets.filter(secret => secret && /\S/u.test(secret) && secret !== REDACTED))].sort((a, b) => b.length - a.length)) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const characters = Array.from(secret)
     const short = characters.length < 4
@@ -56,7 +56,7 @@ export function sanitizeResponse(response: BridgeResponse, secrets: string[] = [
       : { ...element, value: redactStrings(element.value, needles) })
     const sensitiveIndexes = new Set(sensitive.map(element => element.index))
     snapshot.treeLines = snapshot.treeLines?.map(line => {
-      const indexed = /^(\s*\d+)(\s+)(.*)$/.exec(line)
+      const indexed = /^(\s*\d+)(\s+)([\s\S]*)$/.exec(line)
       if (!indexed) return redactStrings(line, needles)
       if (sensitiveIndexes.has(Number(indexed[1].trim()))) return `${indexed[1]} ${REDACTED}`
       return `${indexed[1]}${indexed[2]}${redactStrings(indexed[3], needles)}`
