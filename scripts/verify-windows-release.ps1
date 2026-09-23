@@ -60,12 +60,8 @@ try {
                 $c.owned=$false; throw 'new_logon_required'
             }
             $c.loginHash=$checkpoint.loginHash; $c.settingsHash=$checkpoint.settingsHash
+            Assert-ReleasePayloadPaths $checkpoint.previousPayloadFiles $checkpoint.packages.previous.manifest.fileCount
             $c.previousPayloadFiles=@($checkpoint.previousPayloadFiles)
-            foreach ($file in $c.previousPayloadFiles) {
-                if ($file -notmatch '^[A-Za-z0-9_.\/-]+$' -or $file.StartsWith('/') -or @($file.Split('/') | Where-Object { $_ -in @('','..','.') }).Count) {
-                    $c.owned=$false; throw 'invalid_checkpoint_paths'
-                }
-            }
             $c.packages=@{ previous=@{ installerSha256=$checkpoint.packages.previous.installerSha256; manifest=$checkpoint.packages.previous.manifest; smokeChecks=$checkpoint.packages.previous.smokeChecks };
                 candidate=@{ installerSha256=$checkpoint.packages.candidate.installerSha256; manifest=$checkpoint.packages.candidate.manifest; smokeChecks=$checkpoint.packages.candidate.smokeChecks } }
             $manifest=Test-ReleaseManifest $c.install

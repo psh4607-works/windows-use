@@ -60,13 +60,31 @@ function Assert-ReleaseEnvironment([hashtable]$Facts) {
     }
 }
 
+function Assert-ReleasePayloadPaths($Paths, [int]$ExpectedCount) {
+    if ($ExpectedCount -lt 1 -or @($Paths).Count -ne $ExpectedCount) { throw 'invalid_checkpoint_paths' }
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($file in @($Paths)) {
+        if ($file -isnot [string] -or $file -notmatch '^[A-Za-z0-9_.\/-]+$' -or $file.StartsWith('/') -or
+            @($file.Split('/') | Where-Object { $_ -in @('','..','.') }).Count -or !$seen.Add($file)) { throw 'invalid_checkpoint_paths' }
+    }
+}
+
+function Test-ReleaseSamePath([string]$Left, [string]$Right) {
+    if (!$Left -or !$Right) { return $false }
+    try {
+        $leftFull=[IO.Path]::GetFullPath($Left.Replace('\','/'))
+        $rightFull=[IO.Path]::GetFullPath($Right.Replace('\','/'))
+        return [string]::Equals($leftFull,$rightFull,[StringComparison]::OrdinalIgnoreCase)
+    } catch { return $false }
+}
+
 function Assert-ReleaseRecoveryProcesses($Context, $Processes, [int]$CurrentPid) {
-    $clients=@($Processes | Where-Object { $_.Name -eq 'WindowsUse.exe' -and $_.ExecutablePath -eq (Join-Path $Context.install 'WindowsUse.exe') })
+    $clients=@($Processes | Where-Object { $_.Name -eq 'WindowsUse.exe' -and (Test-ReleaseSamePath $_.ExecutablePath (Join-Path $Context.install 'WindowsUse.exe')) })
     foreach ($process in $Processes) {
         if ($process.ProcessId -eq $CurrentPid -or !$process.CommandLine -or
             $process.CommandLine.IndexOf($Context.work, [StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
         if ($process.ProcessId -in $clients.ProcessId) { continue }
-        if ($process.ExecutablePath -eq (Join-Path $Context.install 'runtime/node.exe') -and
+        if ((Test-ReleaseSamePath $process.ExecutablePath (Join-Path $Context.install 'runtime/node.exe')) -and
             $process.ParentProcessId -in $clients.ProcessId) { continue }
         throw 'recovery_process_still_running'
     }

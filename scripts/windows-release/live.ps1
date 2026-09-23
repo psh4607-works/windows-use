@@ -58,8 +58,9 @@ function Invoke-ReleaseInstaller($c, [string]$Slot) {
     $null=Invoke-ReleaseProcess $c $file -InstallerDirectory $c.install
 }
 function Test-ReleaseInstalled($c, [string]$Slot) {
-    $manifest=Test-ReleaseManifest $c.install
+    if (!(Test-Path -LiteralPath (Join-Path $c.install '.windows-use-client') -PathType Leaf)) { throw 'package_owner_missing' }
     if ([IO.File]::ReadAllText((Join-Path $c.install '.windows-use-client')) -ne 'WindowsUse.Client') { throw 'package_owner_missing' }
+    $manifest=Test-ReleaseManifest $c.install
     # A stripped PATH is independent from a genuinely Node-free VM.
     $version=Invoke-ReleaseProcess $c (Join-Path $c.install 'runtime/node.exe') @('--version')
     if ($version -ne ('v'+$manifest.runtime)) { throw 'bundled_node_mismatch' }
@@ -76,8 +77,7 @@ function Test-ReleaseInstalled($c, [string]$Slot) {
         if ((Get-ReleaseStartup) -ne (Get-ReleaseStartupCommand $c)) { throw 'startup_missing' }
     } else {
         if (Get-ReleaseStartup) { throw 'disabled_startup_not_preserved' }
-        if ((Get-ReleaseHash (Join-Path $c.home 'settings.json')) -ne $c.settingsHash -or
-            [IO.File]::ReadAllText((Join-Path $c.install 'release-user-file.txt')) -ne $c.runId) { throw 'user_data_not_preserved' }
+        Assert-ReleaseUserData $c 'user_data_not_preserved'
         if ((Test-Path (Join-Path $c.home 'server.json')) -or (Test-ReleaseMutex) -or
             @(Get-Process WindowsUse -ErrorAction SilentlyContinue).Count) { throw 'update_owner_not_stopped' }
         if ($c.packages.previous.manifest.sha256 -eq $manifest.sha256) { throw 'same_payload_not_upgrade' }
@@ -94,6 +94,22 @@ function Invoke-ReleaseSmoke($c, [string]$Slot) {
     $c.packages[$Slot].smokeChecks=@($r.checked).Count
     Remove-Item -LiteralPath $report
 }
+function Complete-ReleaseFixture($c, $Fixture, $PrimaryFailure) {
+    $failures=[Collections.Generic.List[string]]::new()
+    try {
+        $Fixture.Refresh()
+        if (!$Fixture.HasExited -and (!$Fixture.CloseMainWindow() -or !$Fixture.WaitForExit(10000))) { $failures.Add('fixture_close_failed') }
+    } catch { $failures.Add('fixture_close_failed') }
+    try { Stop-ReleaseClient $c } catch { $failures.Add('fixture_shutdown_failed') }
+    if (!$PrimaryFailure -and $failures.Count) {
+        try { throw $failures[0] } catch { $PrimaryFailure=$_ }
+        $failures.RemoveAt(0)
+    }
+    if ($PrimaryFailure) {
+        $PrimaryFailure.Exception.Data['releaseSecondaryCodes']=$failures.ToArray()
+        throw $PrimaryFailure
+    }
+}
 function Invoke-ReleaseFixture($c) {
     Start-ReleaseClient $c
     $fixtureDirectory=Join-Path $c.work ('fixture-'+[guid]::NewGuid().ToString('N'))
@@ -102,6 +118,7 @@ function Invoke-ReleaseFixture($c) {
     $fixtureArguments=@('-NoProfile','-STA','-File',(Join-Path $c.source 'test/windows-ui-fixture.ps1'),'-StateDirectory',$fixtureDirectory,'-WindowTitle',$title)
     $fixture=Start-Process $c.powerShell -ArgumentList (($fixtureArguments | ForEach-Object { ConvertTo-ReleaseArgument $_ }) -join ' ') -PassThru
     $c.processes.Add($fixture)
+    $primaryFailure=$null
     try {
         Wait-ReleaseCondition { Test-Path (Join-Path $fixtureDirectory 'ui-state.json') }
         $target=@('--app',[string]$fixture.Id,'--session','release-fixture')
@@ -112,13 +129,8 @@ function Invoke-ReleaseFixture($c) {
         $null=Invoke-ReleaseCli $c (@('set-value')+$target+@('--observation',$snapshot.session.observation,'--element',$elements[0].Groups[1].Value,'--value','release fixture 한글🙂'))
         $state=Get-Content (Join-Path $fixtureDirectory 'ui-state.json') -Raw | ConvertFrom-Json
         if ($state.text -ne 'release fixture 한글🙂') { throw 'fixture_input_not_verified' }
-    } finally {
-        if (!$fixture.HasExited) {
-            $fixture.Refresh()
-            if (!$fixture.CloseMainWindow() -or !$fixture.WaitForExit(10000)) { throw 'fixture_close_failed' }
-        }
-        Stop-ReleaseClient $c
-    }
+    } catch { $primaryFailure=$_ }
+    finally { Complete-ReleaseFixture $c $fixture $primaryFailure }
 }
 function Invoke-ReleaseUninstall($c) {
     Assert-ReleaseClients $c
@@ -130,14 +142,19 @@ function Invoke-ReleaseUninstall($c) {
         $c.uninstallPending=$false
     }
 }
+function Assert-ReleaseUserData($c, [ValidateSet('user_data_not_preserved','uninstall_removed_user_data')][string]$Code) {
+    if (!(Test-Path -LiteralPath (Join-Path $c.install 'release-user-file.txt') -PathType Leaf) -or
+        !(Test-Path -LiteralPath (Join-Path $c.home 'settings.json') -PathType Leaf) -or
+        [IO.File]::ReadAllText((Join-Path $c.install 'release-user-file.txt')) -ne $c.runId -or
+        (Get-ReleaseHash (Join-Path $c.home 'settings.json')) -ne $c.settingsHash) { throw $Code }
+}
 function Test-ReleaseUninstalled($c) {
     if ((Get-ReleaseLocation) -or (Get-ReleaseStartup) -or (Test-Path $c.shortcuts) -or
         (Test-Path (Join-Path $c.home 'server.json')) -or (Test-ReleaseMutex)) { throw 'uninstall_incomplete' }
     foreach ($file in @($c.previousPayloadFiles + $c.payloadFiles + @('package-manifest.json','Uninstall.exe'))) {
         if (Test-Path (Join-Path $c.install $file)) { throw 'payload_survived_uninstall' }
     }
-    if ([IO.File]::ReadAllText((Join-Path $c.install 'release-user-file.txt')) -ne $c.runId -or
-        (Get-ReleaseHash (Join-Path $c.home 'settings.json')) -ne $c.settingsHash) { throw 'uninstall_removed_user_data' }
+    Assert-ReleaseUserData $c 'uninstall_removed_user_data'
 }
 function Invoke-ReleaseCleanup($c) {
     if (!$c.owned) { return @{ status='skipped'; code='no_owned_windows_resources' } }

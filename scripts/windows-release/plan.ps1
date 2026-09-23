@@ -34,7 +34,15 @@ function Invoke-ReleasePlan {
                 $steps.Add([ordered]@{ id=$phase; status=$detail.status; code=$detail.code })
                 if ($phase -eq 'checkpoint') { $retained = $true }
             } catch {
-                $steps.Add([ordered]@{ id=$phase; status='failed'; code='step_failed' })
+                $code='step_failed'
+                if ($_.Exception.Message -cin @('package_owner_missing','user_data_not_preserved','uninstall_removed_user_data',
+                    'fixture_input_not_verified','fixture_close_failed','fixture_shutdown_failed','native_exit_nonzero','native_timeout','native_output_timeout')) {
+                    $code=$_.Exception.Message
+                }
+                $step=[ordered]@{ id=$phase; status='failed'; code=$code }
+                $secondary=@($_.Exception.Data['releaseSecondaryCodes'] | Where-Object { $_ -cin @('fixture_close_failed','fixture_shutdown_failed') })
+                if ($secondary.Count) { $step.secondaryCodes=$secondary }
+                $steps.Add($step)
                 $failed = $true
             }
         }

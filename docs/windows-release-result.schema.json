@@ -28,7 +28,7 @@
   "$defs": {
     "step": {
       "type": "object", "additionalProperties": false, "required": ["id", "status", "code"],
-      "properties": {"id": {"type": "string", "pattern": "^[a-z-]+$"}, "status": {"enum": ["passed", "failed", "skipped", "unverified"]}, "code": {"type": "string", "pattern": "^[a-z_]+$"}}
+      "properties": {"id": {"type": "string", "pattern": "^[a-z-]+$"}, "status": {"enum": ["passed", "failed", "skipped", "unverified"]}, "code": {"type": "string", "pattern": "^[a-z_]+$"}, "secondaryCodes": {"type": "array", "items": {"enum": ["fixture_close_failed", "fixture_shutdown_failed"]}}}
     },
     "package": {
       "type": "object", "additionalProperties": false, "required": ["installerSha256"],

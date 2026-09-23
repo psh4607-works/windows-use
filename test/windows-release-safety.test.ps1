@@ -43,7 +43,9 @@ try {
     }
     $context=@{ work=(Join-Path $base 'release work'); install=(Join-Path $base 'release work/client') }
     $client=@{ Name='WindowsUse.exe'; ProcessId=7; ExecutablePath=(Join-Path $context.install 'WindowsUse.exe'); CommandLine=(Join-Path $context.install 'WindowsUse.exe') }
-    $node=@{ Name='node.exe'; ProcessId=8; ParentProcessId=7; ExecutablePath=(Join-Path $context.install 'runtime/node.exe'); CommandLine=(Join-Path $context.install 'runtime/node.exe') }
+    # CIM reports canonical Windows separators, independently of our Join-Path expression.
+    $reportedNode=[IO.Path]::GetFullPath((Join-Path (Join-Path $context.install 'runtime') 'node.exe')).Replace('/', '\')
+    $node=@{ Name='node.exe'; ProcessId=8; ParentProcessId=7; ExecutablePath=$reportedNode; CommandLine=(Join-Path $context.install 'runtime/node.exe') }
     Assert-ReleaseRecoveryProcesses $context @($client,$node) 99
     Reject { Assert-ReleaseRecoveryProcesses $context @($node) 99 }
     $node.ExecutablePath='foreign-node.exe'

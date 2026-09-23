@@ -92,6 +92,10 @@ NSIS `/D=`는 마지막 인자로 따옴표 없이 전달한다. 공백이 있�
 단계 ID/고정 결과 코드, OS build/환경 boolean, EXE/manifest SHA-256, package/runtime
 버전, 파일/체크 수, UTC 시각. 원시 stdout/stderr, 예외/stack, UI tree/screenshot,
 설치 경로, 호스트, 사용자, SSH 별칭, broker token은 넣지 않는다.
+사용자 파일/설정 유실은 `user_data_not_preserved` 또는 `uninstall_removed_user_data`,
+설치 소유권 파일 누락은 `package_owner_missing`으로 구분한다. 알려진 고정 코드만 보존하고
+나머지 예외는 `step_failed`로 가린다. fixture 입력과 정리가 함께 실패하면 `code`에 원래 원인을,
+`secondaryCodes`에 정리 실패의 고정 코드를 남기며 client 정상 종료는 항상 시도한다.
 
 `work/`와 `.release-owner`, `run.json`, `checkpoint.json`은 **로컬 복구 상태**다.
 이를 통째로 업로드하지 않는다. `work/`의 앱 상태에는 제품이 생성하는 IPC 정보가
@@ -121,6 +125,7 @@ powershell.exe -NoProfile -File .\scripts\verify-windows-release.ps1 -RunDirecto
 ```
 
 새 로그인 ID, 소유권 표식, candidate manifest, 실행 파일/세션, Run 값, doctor를 확인한다.
+이전 payload 목록은 비어 있거나 중복되거나 manifest의 파일 수와 다르면 거절한다.
 완료한 설치/업데이트를 재실행하지 않고 제거/보존 검증과 cleanup으로 이어진다.
 로그인 ID가 같은 resume는 거절하고 checkpoint 설치를 유지한다. OS Run 처리 경로를
 추적하는 기능은 아니므로, 사용자가 앱을 수동 시작하면 자동 시작에 대한 증거로 쓰지 않는다.

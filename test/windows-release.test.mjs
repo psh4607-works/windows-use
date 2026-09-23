@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const available = !spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0']).error;
-for (const suite of ['plan', 'safety', 'native', 'live']) {
+for (const suite of ['plan', 'safety', 'native', 'live', 'review']) {
   test(`release ${suite}: isolated PowerShell assertions`, { skip: !available }, () => {
     const r = spawnSync('pwsh', ['-NoProfile', '-File', `test/windows-release-${suite}.test.ps1`], { encoding: 'utf8', timeout: 30_000 });
     assert.equal(r.status, 0, r.stderr || r.stdout);
