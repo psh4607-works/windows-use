@@ -5,10 +5,11 @@ import { parseCli } from '../src/arguments.mjs';
 import { startDesktop, requestDesktop } from '../src/desktop.mjs';
 import { sshInvocation } from '../src/ssh.mjs';
 import { sendRequest } from '../src/transport.mjs';
+import { waitFor } from '../src/wait-for.mjs';
 
 const help = `windows-use — standalone Windows UI Automation (Node.js 22+)
 
-Commands: serve, status, doctor, capabilities, apps, windows, snapshot, click, invoke, set-value,
+Commands: serve, status, doctor, capabilities, apps, windows, snapshot, query, wait-for, click, invoke, set-value,
           type-text, press-key, hotkey, paste-text, scroll, drag
 
 Start in a Windows desktop terminal: windows-use serve (keep it running)
@@ -27,6 +28,12 @@ Act:     windows-use set-value --app Notepad --session my-task \\
 --observation <token>             Required for actions; use the latest snapshot token
 --window-id <id> | --window-index <index>
 --accessibility uia|msaa          Snapshot backend (default uia); actions inherit it
+--role <native-role>              query/wait-for exact role, e.g. ControlType.Edit or MSAA.42
+--name <name> --automation-id <id> Exact AND selectors; AutomationId is UIA-only
+--condition element|window|value|changed  wait-for condition (default element)
+--window-title <exact-title>      wait-for window selector; pins the first unique HWND
+--timeout-ms <1-600000>            wait-for deadline including reads (default 10000)
+--poll-ms <50-10000>               wait-for interval between reads (default 250)
 --restore-window                 Explicitly permit restoring/focusing the target
 --element <index>                 Accessibility element from the latest snapshot
 --action <name>                   Accessible secondary action (invoke)
@@ -37,6 +44,9 @@ Act:     windows-use set-value --app Notepad --session my-task \\
 --screenshot <local-file>         Save PNG locally; images are omitted by default
 --json                           Results are always JSON
 Snapshots expire after two minutes. Re-observe after errors or another task's input.
+Query/wait never focus or send input; no --window-index or --screenshot.
+wait-for value uses --value/--value-file; changed compares against its first match.
+Ambiguous waits fail; timeout is wait_timeout with exit 1. Ctrl+C cancels the wait.
 `;
 
 async function readStdin() {
@@ -72,9 +82,17 @@ try {
         }
       }
     }
-    let result = !rpc && options.host
-      ? await sendRequest(sshInvocation(options.host, options.remoteDir), request)
-      : await requestDesktop(request);
+    const read = (req, limits) => !rpc && options.host
+      ? sendRequest(sshInvocation(options.host, options.remoteDir), req, limits)
+      : requestDesktop(req, limits);
+    let result;
+    if (request.command === 'wait-for') {
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
+      try { result = await waitFor(request, { read, signal: controller.signal }); }
+      finally { process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel); }
+    } else result = await read(request);
     if (!rpc && options.screenshot) {
       if (!result.screenshot?.data) throw new Error(result.screenshotStatus?.message ?? 'Screenshot was not captured');
       const path = resolve(options.screenshot);

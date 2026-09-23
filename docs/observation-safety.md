@@ -13,11 +13,17 @@ attempts that later fail, time out, or lose their response. A snapshot with
 The policy is deliberately desktop-wide within that directory: input to another
 app/window revokes older observations too, since focus and dialogs cross windows.
 
-Ordinary snapshots, apps/windows/capabilities queries, status and doctor do not
+Ordinary snapshots, element `query`, apps/windows/capabilities queries, status and doctor do not
 advance the revision. A successful action returns a new token for its refreshed
 snapshot; other sessions must snapshot again. A failed action does not return a
 replacement token. Observations do not detect changes made by a person, another
 application, another installation/state directory, or an older runtime.
+
+Element `query` and the observations returned by `wait-for` use the same versioned
+state, global lock and input revision as `snapshot`. Read-only polling preserves
+other sessions' tokens; subsequent input revokes them. A completed wait's token
+must still pass the normal revision check before an action. Polls release the
+broker between requests and stop when pause/resume changes the access epoch.
 
 The IPC broker queues requests, but token/revision checks happen when each request
 **executes**, not just when it enters the queue. `executeRequest` uses an exclusive
@@ -42,8 +48,8 @@ rejection over overlapping an input whose outcome is unknown.
 
 Observation files now use `version: 2` and include `inputRevision`. Legacy state,
 invalid expiry, malformed snapshot collections, or a missing/mismatched revision
-are rejected before input. A fresh snapshot replaces old session state. A missing
-or malformed revision file can be reset by a fresh snapshot; its new random revision
+are rejected before input. A fresh snapshot or element query replaces old session state. A missing
+or malformed revision file can be reset by either observation; its new random revision
 also revokes every old token. Filesystem permission/write errors remain failures.
 Revision and session files use temporary files followed by rename, under the lock.
 

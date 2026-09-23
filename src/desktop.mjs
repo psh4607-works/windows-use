@@ -50,6 +50,7 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
     } finally { await release(); }
   }
   let broker, activeRequests = 0, revision = 0;
+  const accessInstance = randomUUID();
   const idleWaiters = new Set();
   const stateDir = join(directory, 'state');
   const clearObservations = async () => {
@@ -59,7 +60,7 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
       await mkdir(stateDir, { recursive: true, mode: 0o700 });
     } finally { await release(); }
   };
-  const status = () => ({ state: paused ? 'paused' : 'running', activeRequests, pid: process.pid });
+  const status = () => ({ state: paused ? 'paused' : 'running', activeRequests, pid: process.pid, accessEpoch: `${accessInstance}:${revision}` });
   const execute = handler ?? (request => executeRequest(request, { stateDir }));
   const rejectPaused = () => { throw Object.assign(new Error('Windows Use is paused or its access state changed. Take a new snapshot after resuming.'), { code: 'desktop_paused' }); };
   const handle = async request => {
@@ -81,9 +82,29 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
   try { await clearObservations(); broker = await startBroker({ ...config, prepare: request => {
     if (!request || ![...COMMANDS, 'status', 'doctor'].includes(request.command)) throw new Error('Unknown command');
     const diagnostic = ['status', 'doctor'].includes(request.command);
+    const tracked = request.trackAccess === true;
+    if (tracked && (!['windows', 'query', 'snapshot'].includes(request.command) ||
+        (request.params?.restoreWindow !== undefined && request.params.restoreWindow !== false))) {
+      throw Object.assign(new Error('Access tracking is only supported for reads without focus changes.'), { code: 'invalid_wait' });
+    }
     if (paused && !diagnostic) rejectPaused();
     const admitted = revision;
-    return () => { if (!diagnostic && admitted !== revision) rejectPaused(); return handle(request); };
+    return async () => {
+      if (!diagnostic && admitted !== revision) rejectPaused();
+      if (tracked && request.accessEpoch !== undefined && request.accessEpoch !== status().accessEpoch) rejectPaused();
+      let result;
+      try { result = await handle(request); }
+      catch (error) {
+        // Preserve the wait's epoch even before the target app appears.
+        if (!tracked || request.command !== 'windows' || error.code !== 'app_not_found') throw error;
+        result = { windows: [] };
+      }
+      if (!tracked) return result;
+      // A pause may have begun while the native read was in flight. Never stamp
+      // that old observation with the new epoch, even if access already resumed.
+      if (paused || admitted !== revision) rejectPaused();
+      return { ...result, accessEpoch: status().accessEpoch };
+    };
   } }); }
   catch (error) { await rm(configPath, { force: true }); throw error; }
   return { status, setPaused: async value => {
@@ -102,12 +123,12 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
   } };
 }
 
-export async function requestDesktop(request, { directory = defaultDirectory() } = {}) {
+export async function requestDesktop(request, { directory = defaultDirectory(), timeoutMs, signal } = {}) {
   if (!request || ![...COMMANDS, 'status', 'doctor'].includes(request.command)) throw new Error('Unknown command');
   let config;
   try { config = JSON.parse(await readFile(join(directory, 'server.json'), 'utf8')); }
   catch (error) { if (error.code === 'ENOENT') throw new Error('Start windows-use serve in an interactive Windows desktop terminal first.'); throw error; }
-  try { return await callBroker(request, config); }
+  try { return await callBroker(request, { ...config, timeoutMs, signal }); }
   catch (error) {
     if (['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw new Error('Desktop server is unavailable. Start windows-use serve in the Windows desktop session; do not start it over SSH.');
     throw error;

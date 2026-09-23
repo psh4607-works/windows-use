@@ -50,7 +50,8 @@ export async function startBroker({ endpoint, token, handler, prepare }) {
   } };
 }
 
-export async function callBroker(request, { endpoint, token, timeoutMs = 60000 }) {
+export async function callBroker(request, { endpoint, token, timeoutMs = 60000, signal }) {
+  signal?.throwIfAborted();
   const input = JSON.stringify({ token, request });
   if (Buffer.byteLength(input) > MAX_REQUEST) throw new Error('Request exceeds 2 MiB');
   return new Promise((resolve, reject) => {
@@ -58,8 +59,11 @@ export async function callBroker(request, { endpoint, token, timeoutMs = 60000 }
     let data = '', bytes = 0, settled = false;
     const finish = (error, result) => {
       if (settled) return; settled = true; socket.destroy();
+      signal?.removeEventListener('abort', onAbort);
       if (error) reject(error); else resolve(result);
     };
+    const onAbort = () => finish(signal.reason);
+    signal?.addEventListener('abort', onAbort, { once: true });
     socket.setEncoding('utf8');
     socket.setTimeout(timeoutMs, () => finish(new Error('Desktop broker timeout; action outcome is unverifiable. Re-observe before retrying.')));
     // Windows named pipes do not support the Unix half-close request pattern.

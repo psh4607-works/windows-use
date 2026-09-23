@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 
-export async function sendRequest({ program, args }, request, { timeoutMs = 65000, maxOutputBytes = 20 * 1024 * 1024 } = {}) {
+export async function sendRequest({ program, args }, request, { timeoutMs = 65000, maxOutputBytes = 20 * 1024 * 1024, signal } = {}) {
+  signal?.throwIfAborted();
   const input = JSON.stringify(request);
   if (Buffer.byteLength(input) > 2 * 1024 * 1024) throw new Error('Request exceeds 2 MiB');
   return new Promise((resolve, reject) => {
@@ -11,15 +12,18 @@ export async function sendRequest({ program, args }, request, { timeoutMs = 6500
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       if (error) reject(error); else resolve(result);
     };
-    const terminate = message => {
+    const terminate = error => {
       child.kill('SIGTERM');
       const force = setTimeout(() => child.kill('SIGKILL'), 1000);
       force.unref(); child.once('close', () => clearTimeout(force));
-      finish(new Error(message));
+      finish(typeof error === 'string' ? new Error(error) : error);
     };
     const timer = setTimeout(() => terminate('SSH timed out; remote action outcome is unverifiable. Observe before retrying.'), timeoutMs);
+    const onAbort = () => terminate(signal.reason);
+    signal?.addEventListener('abort', onAbort, { once: true });
     for (const [stream, chunks] of [[child.stdout, stdout], [child.stderr, stderr]]) {
       stream.on('data', chunk => {
         bytes += chunk.length;

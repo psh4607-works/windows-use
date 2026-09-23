@@ -48,6 +48,49 @@ Coordinate clicks, pointer fallback, scroll and drag require `--allow-pointer`. 
 
 Use `--text-file` or `--value-file` when input should stay out of process arguments. Do not print broker tokens, copy SSH credentials, weaken host-key checking, or change Windows security policy for setup.
 
+## Query and wait
+
+Use `query` for exact, case-sensitive AND matching of `--role`, `--name` and
+`--automation-id` against a fresh observation. Supply at least one selector. If
+multiple windows exist, specify `--window-id`; no arbitrary window is selected.
+The result contains `query.matches`, `matchCount`, `unique`, `complete`, snapshot
+window metadata and a new session observation. Act only after inspecting a unique,
+complete result, using its window ID, element index, session and observation token.
+Query never chooses or executes an action. Never pick the first ambiguous match.
+
+Roles are native identifiers: UIA `ControlType.Edit`, MSAA `MSAA.42`, or MSAA
+`MSAA.custom.<role>`. `roleLabel` is display text, not the selector. Names match the
+backend's observed strings. MSAA has no AutomationId; that selector is rejected.
+Missing fields are not inferred. Sensitive names/IDs are redacted in query output;
+sensitive or unsupported values are null. Do not use secrets as selectors.
+
+```text
+windows-use query --app <pid> --session find --window-id <HWND> --name Save
+windows-use wait-for --app <pid> --session wait --name Ready --timeout-ms 10000 --poll-ms 250
+windows-use wait-for --app <pid> --session wait --condition window --window-title Ready
+windows-use wait-for --app <pid> --session wait --automation-id status --condition value --value ready
+windows-use wait-for --app <pid> --session wait --name Editor --condition changed
+```
+
+Carry host/remote-dir options through every call. Wait conditions are `element`
+(default), `window` (no element selectors), `value` (exact `--value`/`--value-file`),
+and `changed` (relative to its first readable match, tracking native identity).
+Sensitive, unavailable or truncated values cannot be compared. Ambiguous matches,
+truncated trees and replaced native identities require a narrower/new observation.
+
+Wait pins the first unique HWND and stops if it closes. It polls only reads from the
+caller, releasing the broker between polls. Deadline includes SSH/queue/read time;
+timeout is 1–600000ms (default 10000), interval 50–10000ms (default 250). Successful
+waits return a fresh observation; no input is retried. Query/wait reject window
+indexes, screenshots and restore-window. Ctrl+C/SIGTERM produces `wait_cancelled`;
+deadline produces `wait_timeout`; both exit 1 without value previews. A started
+native read may finish after caller cancellation. Pause/resume or server restart
+ends the wait, even if it occurred between polls. Update caller and desktop server
+together: old servers without stamped read access epochs fail with `unsupported_wait`.
+Each read carries the previous epoch; the server checks it before execution and
+again before returning. Epochs accompany read results, including an absent app,
+so waits need no separate status requests and still reject pause during a read.
+
 ## Recovery
 
 - A timeout, disconnected host, failed action, stale observation, or changed window requires a new snapshot before retrying. Do not automatically replay input whose result is unknown.

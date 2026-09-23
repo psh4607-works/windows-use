@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { lockObservations, readInputRevision, advanceInputRevision, validateObservationState } from './observation-revision.mjs';
 import { DesktopScriptProviderClient } from '../dist/provider.mjs';
+import { observeQuery } from './query.mjs';
 
 const ACTIONS = { click: 'click', 'type-text': 'typeText', 'press-key': 'pressKey', hotkey: 'hotkey', 'paste-text': 'pasteText', 'set-value': 'setValue', invoke: 'performSecondaryAction', scroll: 'scroll', drag: 'drag' };
-export const COMMANDS = ['capabilities', 'apps', 'windows', 'snapshot', ...Object.keys(ACTIONS)];
+export const COMMANDS = ['capabilities', 'apps', 'windows', 'snapshot', 'query', ...Object.keys(ACTIONS)];
 export const SESSION_TTL_MS = 120000;
 
 function defaultProvider() {
@@ -21,6 +22,7 @@ export async function executeRequest(request, {
 } = {}) {
   if (!request || !COMMANDS.includes(request.command)) throw new Error('Unknown command');
   const params = { noScreenshot: true, ...request.params };
+  const observing = ['snapshot', 'query'].includes(request.command);
   if (params.accessibility !== undefined && !['uia', 'msaa'].includes(params.accessibility)) throw new Error('Invalid accessibility backend');
   if (['capabilities', 'apps', 'windows'].includes(request.command)) {
     const provider = providerFactory();
@@ -42,9 +44,9 @@ export async function executeRequest(request, {
   try {
     try { sessionLock = await open(sessionLockPath, 'wx', 0o600); }
     catch (error) { if (error.code === 'EEXIST') throw new Error('Session is busy; wait for its active owner.'); throw error; }
-    let inputRevision = await readInputRevision(stateDir, request.command === 'snapshot');
+    let inputRevision = await readInputRevision(stateDir, observing);
     provider = providerFactory();
-    if (request.command !== 'snapshot') {
+    if (!observing) {
       let saved;
       try { saved = JSON.parse(await readFile(statePath, 'utf8')); }
       catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) throw new Error('Take a fresh snapshot in this session before acting.'); throw error; }
@@ -70,11 +72,11 @@ export async function executeRequest(request, {
     if (request.command === 'click') { params.clickCount ??= 1; params.mouseButton ??= 'left'; }
     if (request.command === 'scroll') params.pages ??= 1;
     // Consume the observation before input: a lost response must not permit replay.
-    if (request.command !== 'snapshot' || params.restoreWindow === true) {
+    if (!observing || params.restoreWindow === true) {
       inputRevision = await advanceInputRevision(stateDir);
       await rm(statePath, { force: true });
     }
-    const result = request.command === 'snapshot'
+    const result = request.command === 'query' ? await observeQuery(provider, params) : request.command === 'snapshot'
       ? await provider.snapshot(params)
       : await provider.action(method, params);
     const observation = randomUUID();
