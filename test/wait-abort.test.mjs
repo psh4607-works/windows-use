@@ -42,3 +42,25 @@ test('an unrelated sleep failure retains its original error', async () => {
   const failure = new Error('fixture sleep failure');
   await assert.rejects(waitFor(request(10000), { read, sleep: async () => { throw failure; } }), error => error === failure);
 });
+
+for (const code of ['ABORT_ERR', 'app_not_found']) {
+  test(`cancellation takes precedence over a simultaneous read ${code} rejection`, async () => {
+    const controller = new AbortController();
+    let entered;
+    const reading = new Promise(resolve => { entered = resolve; });
+    const pending = waitFor(request(10000), { signal: controller.signal,
+      read: (_request, { signal }) => new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(Object.assign(new Error('fixture read failure'), { code })), { once: true });
+        entered();
+      })
+    });
+    const assertion = assert.rejects(pending, error => error.code === 'wait_cancelled');
+    await reading; controller.abort(); await assertion;
+  });
+}
+
+test('a live wait still maps an unsupported read before any cancellation', async () => {
+  await assert.rejects(waitFor(request(10000), { read: async () => {
+    throw Object.assign(new Error('fixture app missing'), { code: 'app_not_found' });
+  } }), error => error.code === 'unsupported_wait');
+});
