@@ -40,6 +40,10 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
         controller.signal.addEventListener('abort', onAbort, { once: true });
         if (controller.signal.aborted) onAbort();
       })]);
+    } catch (error) {
+      // Abortable reads/sleeps can reject before our race listener. Preserve
+      // the public wait reason regardless of abort listener/microtask order.
+      throw controller.signal.aborted ? controller.signal.reason : error;
     } finally { controller.signal.removeEventListener('abort', onAbort); }
   };
   let accessEpoch;
