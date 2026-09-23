@@ -242,3 +242,19 @@ test('free-text redaction escapes literal patterns and preserves existing marker
     } finally { provider.shutdown(); }
   }
 });
+
+test('overlapping sensitive values redact the complete longest value', async () => {
+  const value = 'SYNTHETIC_TOKEN', expanded = `${value}_EXPANDED`;
+  const provider = fixture({ before: { ...element, isSensitive: true }, after: [{ ...element, isSensitive: true, value: expanded }] }).providerFactory();
+  const bridge = provider.callBridge;
+  provider.callBridge = async request => {
+    const result = await bridge(request);
+    if (request.tool === 'set_value') result.snapshot.windowTitle = `Value: ${expanded}`;
+    return result;
+  };
+  try {
+    await provider.snapshot({ app: 'fixture' });
+    const result = await provider.action('setValue', { app: 'fixture', elementIndex: 2, value });
+    assert.equal(result.snapshot.window.title, 'Value: [redacted]');
+  } finally { provider.shutdown(); }
+});

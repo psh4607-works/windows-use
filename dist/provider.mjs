@@ -52,7 +52,7 @@ function sensitiveAction(snapshot, target) {
 function redactStrings(value, secrets) {
   if (typeof value !== "string") return value;
   let text = value;
-  for (const secret of new Set(secrets.filter((secret2) => secret2 && secret2 !== REDACTED))) {
+  for (const secret of [...new Set(secrets.filter((secret2) => secret2 && secret2 !== REDACTED))].sort((a, b) => b.length - a.length)) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = Array.from(secret).length < 4 ? new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, "gu") : new RegExp(escaped, "gu");
     text = text.split(REDACTED).map((part) => part.replace(pattern, () => REDACTED)).join(REDACTED);

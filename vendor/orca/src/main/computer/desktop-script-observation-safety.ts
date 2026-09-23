@@ -30,7 +30,7 @@ export function sensitiveAction(snapshot: BridgeSnapshot | undefined, target: Br
 export function redactStrings<T>(value: T, secrets: string[]): T {
   if (typeof value !== 'string') return value
   let text: string = value
-  for (const secret of new Set(secrets.filter(secret => secret && secret !== REDACTED))) {
+  for (const secret of [...new Set(secrets.filter(secret => secret && secret !== REDACTED))].sort((a, b) => b.length - a.length)) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const pattern = Array.from(secret).length < 4
       ? new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'gu')
