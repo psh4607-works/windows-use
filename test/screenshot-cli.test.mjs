@@ -5,6 +5,8 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startDesktop } from '../src/desktop.mjs';
+import { startBroker } from '../src/broker.mjs';
+import { randomUUID } from 'node:crypto';
 
 const image = Buffer.from('fixture PNG bytes');
 const remote = {
@@ -163,6 +165,44 @@ test('desktop errors keep the existing error envelope and do not claim a screens
   assert.equal(code, 1);
   assert.deepEqual(response, { ok: false, error: { code: 'stale_observation', message: 'observation expired' } });
   assert.equal(f.calls(), 1);
+});
+
+for (const result of [null, undefined, false, 42, 'unexpected response']) {
+  test(`missing image in a ${typeof result} response remains a capture-stage failure`, async t => {
+    const f = await fixture(t, () => result);
+    const path = join(f.outputDir, 'image.png');
+    const { code, response } = await run(f.directory, path);
+    assert.equal(code, 1);
+    assert.equal(response.ok, false);
+    assert.equal(response.error.code, 'screenshot_missing');
+    assert.deepEqual(response.screenshotOutput, { status: 'failed', stage: 'capture', path });
+    assert.equal(response.result, result ?? null);
+    assert.equal(f.calls(), 1);
+    await assert.rejects(readFile(path), { code: 'ENOENT' });
+  });
+}
+
+test('doctor with a null result and requested screenshot emits one capture failure', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-shot-'));
+  const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\windows-use-${randomUUID()}` : join(directory, 'desktop.sock');
+  const token = randomUUID();
+  let calls = 0;
+  const broker = await startBroker({ endpoint, token, handler: request => {
+    calls++;
+    assert.equal(request.command, 'doctor');
+    return null;
+  } });
+  t.after(async () => { await broker.close(); await rm(directory, { recursive: true, force: true }); });
+  await writeFile(join(directory, 'server.json'), JSON.stringify({ endpoint, token }));
+  const path = join(directory, 'image.png');
+  const { code, response } = await run(directory, path, 'doctor');
+  assert.equal(code, 1);
+  assert.equal(response.ok, false);
+  assert.equal(response.result, null);
+  assert.equal(response.error.code, 'screenshot_missing');
+  assert.deepEqual(response.screenshotOutput, { status: 'failed', stage: 'capture', path });
+  assert.equal(calls, 1);
+  await assert.rejects(readFile(path), { code: 'ENOENT' });
 });
 
 test('RPC still transports image data without local screenshot preflight or persistence', async t => {

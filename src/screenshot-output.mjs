@@ -14,6 +14,8 @@ export async function preflightScreenshot(path) {
     if (!(await stat(parent)).isDirectory()) {
       throw Object.assign(new Error('Screenshot parent is not a directory.'), { code: 'ENOTDIR' });
     }
+    // Node's access check does not evaluate Windows ACLs. A denied write can
+    // still fail after the desktop action; saveScreenshot preserves that result.
     await access(parent, constants.W_OK | constants.X_OK);
   } catch (error) {
     error.screenshotOutput = { status: 'failed', stage: 'preflight', path };
@@ -22,13 +24,13 @@ export async function preflightScreenshot(path) {
 }
 
 export async function saveScreenshot(result, path) {
-  const { data, ...metadata } = result.screenshot ?? {};
+  const { data, ...metadata } = result?.screenshot ?? {};
   // Keep input/observation evidence even when capture or local persistence fails.
   // Raw image data is only for the RPC hop, never the caller's JSON output.
-  const preserved = { ...result, ...(result.screenshot && { screenshot: metadata }) };
+  const preserved = result?.screenshot ? { ...result, screenshot: metadata } : result ?? null;
   const stage = data ? 'save' : 'capture';
   try {
-    if (!data) throw Object.assign(new Error(result.screenshotStatus?.message ?? 'Screenshot was not captured'), { code: 'screenshot_missing' });
+    if (!data) throw Object.assign(new Error(result?.screenshotStatus?.message ?? 'Screenshot was not captured'), { code: 'screenshot_missing' });
     await writeFile(path, Buffer.from(data, 'base64'), { flag: 'wx', mode: 0o600 });
     return { ok: true, result: { ...preserved, screenshot: { ...metadata, path } },
       screenshotOutput: { status: 'saved', path } };
