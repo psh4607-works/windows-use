@@ -264,6 +264,39 @@ CLI 설치·Windows 클라이언트 실행·SSH 연결을 대신하지 않습니
 - 비정상 종료 후 등록 파일이 남으면 기존 서버 실행 여부를 먼저 확인하세요. 실행 중인
   서버를 임의 종료하거나 등록 파일을 덮어쓰지 마세요.
 
+### 스크린샷 오류와 입력 결과
+
+`--screenshot`은 입력 전에 기존 파일(디렉터리·끊어진 심볼릭 링크 포함), 부모 경로와
+운영체제가 제공하는 접근 권한을 검사합니다. 사전 검사 실패 시 입력 요청은 보내지 않습니다.
+Node의 접근 권한 검사는 Windows ACL을 평가하지 않으므로, Windows ACL에 따른 쓰기 거부는
+입력 후 저장 단계에서 발생할 수 있습니다. 검사 이후의 파일 생성·삭제·권한 변경 경합도
+가능하므로 실제 저장은 배타 생성(`wx`)을 사용하고, 저장 실패 시 입력 결과를 보존합니다.
+
+stdout은 항상 단일 JSON입니다. 스크린샷 실패의 기존 `ok: false`, `error`, exit 1은
+유지하며, 다음 필드로 입력 응답과 이미지 저장 결과를 구분합니다.
+
+| 상황 | exit / ok | `result` | `screenshotOutput` |
+| --- | --- | --- | --- |
+| 사전 경로 검사 실패 | 1 / false | 없음; 입력 미전송 | `status: failed`, `stage: preflight`, 요청한 절대 `path` |
+| 응답 후 이미지 누락 | 1 / false | 원격 결과 보존 | `status: failed`, `stage: capture`, `path` |
+| 응답 후 로컬 저장 실패 | 1 / false | 원격 결과 보존 | `status: failed`, `stage: save`, `path` |
+| 저장 성공 | 0 / true | 기존 결과, `screenshot.path` | `status: saved`, `path` |
+
+후처리 실패에서도 `result.action`과 그 `verification`, `snapshot`, 새
+`session.observation`, 원격 캡처 상태인 `screenshotStatus`를 보존합니다. 이미지의
+base64 `data`는 로컬 출력에서 제거하고 나머지 메타데이터는 유지합니다. `result`가
+있다는 것은 원격 응답을 받았다는 뜻이며, 입력 성공 여부는 `action.verification`과
+스냅샷으로 판단해야 합니다. 응답 결과 자체가 없으면 `result: null`, `stage: capture`로
+표시합니다. 이때는 입력 결과를 판단할 증거가 없으므로 새 스냅샷으로 확인하세요.
+캡처 상태와 로컬 저장 상태는 별개입니다.
+
+호출자는 exit 1에서도 JSON을 읽어야 합니다. `stage: capture` 또는 `save`이면
+이미 실행된 입력을 재전송하지 말고 보존된 결과를 확인하세요. 이미지가 더 필요하면
+새 파일 경로로 별도의 `snapshot --screenshot`을 실행하세요. 쓰기 도중 디스크 오류가
+발생하면 새로 만든 불완전한 파일이 남을 수 있으므로 `screenshotOutput.status: saved`만
+저장 성공으로 취급합니다. 사전 검사와 후처리는 기존 파일을 삭제하거나 덮어쓰지 않습니다.
+스크린샷을 요청하지 않은 명령과 RPC의 응답 계약은 바뀌지 않습니다.
+
 ## 요소 검색과 조건 대기
 
 `query`는 새 snapshot을 관찰하고 `--role`, `--name`, `--automation-id`를 대소문자를
