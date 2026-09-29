@@ -101,7 +101,7 @@ try {
     const response = screenshotPath ? await saveScreenshot(result, screenshotPath) : { ok: true, result };
     process.stdout.write(`${JSON.stringify(response)}\n`);
     if (!response.ok) process.exitCode = 1;
-  if (!rpc && request.command === 'doctor' && result?.desktop?.ok !== true) process.exitCode = 1;
+    if (!rpc && request.command === 'doctor' && result?.desktop?.ok !== true) process.exitCode = 1;
   }
 } catch (error) {
   process.stdout.write(`${JSON.stringify({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message },
