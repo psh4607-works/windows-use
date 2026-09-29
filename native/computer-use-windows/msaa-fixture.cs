@@ -27,11 +27,12 @@ public class MsaaFixture : Accessibility.IAccessible {
     public int State, Invocations, ValueReads, LastChild = -1;
     public int Error = unchecked((int)0x80020003);
     public string ErrorMessage = "fixture provider failure";
-    public bool MapNotImplemented, MapHResult, UnexpectedFailure;
+    public bool MapNotImplemented, MapHResult;
+    public System.Exception UnexpectedFailure;
     public int ChildrenError, ChildrenStatus, ReturnedChildren = -1;
     public object[] Children = new object[0];
     protected void Check(string property) {
-        if (Unsupported == property && UnexpectedFailure) throw new System.InvalidOperationException(ErrorMessage);
+        if (Unsupported == property && UnexpectedFailure != null) throw UnexpectedFailure;
         if (Unsupported == property && MapHResult) System.Runtime.InteropServices.Marshal.ThrowExceptionForHR(Error);
         if (Unsupported == property && MapNotImplemented && Error == unchecked((int)0x80004001))
             throw new System.NotImplementedException(ErrorMessage);

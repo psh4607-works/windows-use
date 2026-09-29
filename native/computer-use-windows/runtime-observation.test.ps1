@@ -71,13 +71,23 @@ foreach ($errorCase in @(
 $broken.Unsupported = ''; $broken.MapHResult = $false
 Assert-Test ($mappedFailures.Count -eq 0) "Mapped MSAA failures escaped traversal: $($mappedFailures -join ', ')"
 
-foreach ($property in @('state', 'children', 'identity')) {
-    $broken.Unsupported = $property; $broken.UnexpectedFailure = $true
-    $readFailed = $false
-    try { $null = Read-Msaa $root } catch { $readFailed = $true }
-    Assert-Test $readFailed "An unrelated $property failure must propagate rather than being hidden as a provider omission"
+$unexpectedFailures = New-Object System.Collections.Generic.List[string]
+foreach ($unexpected in @(
+    [InvalidOperationException]::new('fixture-sensitive-provider failure'),
+    [ArgumentNullException]::new('fixtureParameter'),
+    [ArgumentOutOfRangeException]::new('fixtureParameter')
+)) {
+    foreach ($property in @('state', 'children', 'identity')) {
+        $broken.Unsupported = $property; $broken.UnexpectedFailure = $unexpected
+        $caught = $null
+        try { $null = Read-Msaa $root } catch { $caught = $_.Exception.GetBaseException() }
+        if ($null -eq $caught -or $caught.GetType() -ne $unexpected.GetType()) {
+            $unexpectedFailures.Add("$($unexpected.GetType().Name):$property")
+        }
+    }
 }
-$broken.Unsupported = ''; $broken.UnexpectedFailure = $false
+$broken.Unsupported = ''; $broken.UnexpectedFailure = $null
+Assert-Test ($unexpectedFailures.Count -eq 0) "Unrelated exceptions were hidden as provider omissions: $($unexpectedFailures -join ', ')"
 Write-Output 'PASS: mapped COM required-read failures preserve siblings; unavailable identity remains visible; unrelated errors propagate'
 
 foreach ($failure in @('child-count', 'enumeration', 'short-read', 'null-child', 'invalid-child')) {

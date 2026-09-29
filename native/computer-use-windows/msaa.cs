@@ -91,7 +91,7 @@ public static class OrcaMsaa {
         // COM interop maps common provider HRESULTs to these managed types.
         // Preserve unrelated failures instead of disguising them as omissions.
         return error is COMException || error is NotImplementedException ||
-            error is ArgumentException || error is InvalidCastException;
+            error.GetType() == typeof(ArgumentException) || error is InvalidCastException;
     }
 
     private static int[] Identity(IAccessible accessible, int child, IntPtr window) {
