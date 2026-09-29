@@ -35,7 +35,7 @@ Mac/Linux에서 저장소를 내려받아 패키지를 만듭니다. 아래 예�
 방식이며, npm 레지스트리에 게시된 패키지를 전제로 하지 않습니다.
 
 ```sh
-git clone https://github.com/psh4607/windows-use.git
+git clone https://github.com/psh4607-works/windows-use.git
 cd windows-use
 npm ci
 npm pack
@@ -73,7 +73,35 @@ node ./bin/windows-use.mjs --help
 - 자동 실행은 현재 사용자의 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`에 등록합니다. 설정에서 끌 수 있습니다.
 - 연결 설정은 호출 PC의 SSH 설정에 사용할 안내 정보입니다. SSH 서버·인증키·Cloudflare 터널·방화벽을 자동 설정하거나 수정하지 않습니다. 기존 SSH 사용자와 데스크톱 사용자가 같아야 합니다.
 - 연결 테스트는 입력 중인 SSH 포트를 사용하고 설정을 자동 저장하지 않습니다. Windows에서 확인한 로컬 SSH 응답은 외부 네트워크나 SSH 인증 성공의 증거가 아닙니다.
-- `doctor`는 원격 SSH 왕복, 인증된 IPC, 실제 앱 목록 조회를 검사합니다. 데스크톱이 중지됐거나 조회에 실패하면 종료 코드 1입니다.
+- `doctor`는 원격 SSH 왕복, 인증된 IPC, 실제 앱 목록 조회와 빌드 정합성을 검사합니다. 데스크톱 접근 또는 빌드 정합성에 실패하면 종료 코드 1입니다.
+
+### 같은 버전의 설치본 확인
+
+`doctor`의 `identities.caller`, `identities.installation`, `identities.server`는 각각
+호출 CLI, Windows RPC 설치본, 실행 중 서버의 시작 시점 빌드를 표시합니다.
+각 identity에는 패키지 버전, 파일 내용의 SHA-256 `buildId`, protocol/capability
+revision, 패키지에 포함된 스킬의 `skillSha256`, manifest 검증 결과 `integrity`가 있습니다.
+빌드 정보에는 사용자 경로나 IPC 인증 정보가 포함되지 않습니다.
+
+`build.ok`는 세 빌드와 스킬이 일치하고 필요한 기능을 지원할 때만 참입니다.
+`build.compatible`은 기능 호환성만 나타내며, 같은 semver도 다른 빌드일 수 있습니다.
+서버나 구버전 RPC가 identity를 제공하지 않으면 해당 값은 `null`이며 일치를 주장하지 않습니다.
+스킬 해시는 **패키지 내부** 스킬 기준입니다. 에이전트에 따로 설치한 스킬도 같은 패키지에서 갱신하세요.
+
+`npm run build`와 `npm pack`은 정렬된 상대 경로와 파일 해시로 재현 가능한
+`build-manifest.json`을 만듭니다. npm 패키지와 Windows installer에 같은 manifest가
+포함되며 CLI, installer, 트레이 패키징 버전은 `package.json`을 사용합니다.
+실행 중 디스크 파일이 바뀌면 서버는 `restart_required`로 일반 요청을 거절합니다.
+정상적인 interactive 재시작 후 doctor를 다시 실행하세요.
+
+구서버의 `apps`, `windows`, 일반 `snapshot`, `status`, `doctor`는 진단에 사용할 수
+있습니다. 최신 caller의 query, wait, 입력 및 창 복원을 포함한 snapshot은
+protocol 또는 필요한 capability가 없으면 실행 전에 거절됩니다.
+입력 결과가 불명확할 때는 자동 재실행하지 말고 새 snapshot으로 확인하세요.
+
+전용 테스트 설치는 `--remote-dir`과 `--remote-home`을 함께 사용하세요.
+`--remote-home`은 원격 CLI의 `WINDOWS_USE_HOME`을 설정하므로 interactive 서버에도
+같은 값을 설정해야 합니다. 디렉터리를 바꾸는 것만으로 broker가 격리되지는 않습니다.
 - 업데이트 시 현재 트레이 앱을 정상 종료한 뒤 파일을 교체합니다. 제거는 Windows의 설치된 앱 또는 시작 메뉴에서 실행합니다. 연결 설정·기존 수동 설치·사용자 추가 파일은 보존합니다.
 - 다른 `windows-use serve`가 실행 중이면 먼저 해당 소유자를 확인하고 정상 종료하세요. 설치 프로그램은 기존 수동 서버를 임의 종료하지 않습니다. 트레이는 죽은 PID의 등록만 회수하며 살아 있는 소유자는 덮어쓰지 않습니다.
 - 현재 배포 EXE는 코드 서명되지 않았습니다. Windows 실기 검증 범위는 [설치 검증 기록](docs/windows-client-verification.md)을 확인하세요.

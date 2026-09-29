@@ -5,13 +5,30 @@ description: Inspect and operate Windows apps through the windows-use CLI using 
 
 # Windows Use
 
-Run `windows-use --help` first through your normal shell tool. Use the same CLI in Codex, Claude Code, or a terminal; no agent-specific bridge or MCP server is required. If the command is unavailable, use a CLI path supplied by the user or follow the [installation guide](https://github.com/psh4607/windows-use#readme). Loading this skill does not install the CLI or establish an SSH connection.
+Run `windows-use --help` first through your normal shell tool. Use the same CLI in Codex, Claude Code, or a terminal; no agent-specific bridge or MCP server is required. If the command is unavailable, use a CLI path supplied by the user or follow the [installation guide](https://github.com/psh4607-works/windows-use#readme). Loading this skill does not install the CLI or establish an SSH connection.
 
 For a local Windows installer setup, invoke `%LOCALAPPDATA%\Programs\WindowsUse\windows-use.cmd` from PowerShell and omit `--host`. In PowerShell, resolve that path with `$env:LOCALAPPDATA`. For a source checkout, `node /path/to/windows-use/bin/windows-use.mjs` is an alternative to the command on PATH. Carry the chosen executable path through the task.
 
 The Windows installer includes Node.js and a tray client; Windows does not need a separate Node installation. Launch Windows Use from the Windows Start menu or at login. It must run in the logged-in Windows desktop session; an SSH service session does not establish desktop access. The Mac/Linux caller needs Node.js 22+ and this package, using `--host <existing-SSH-alias>`. Remote discovery first checks `%LOCALAPPDATA%/Programs/WindowsUse`, then the legacy `%USERPROFILE%/.windows-use/app`. Use `--remote-dir` for another installation. Legacy manual installs still require Node.js 22+ and `windows-use serve` in a desktop terminal. Setup is documented in the package README.
 
 Use `windows-use status --host <alias>` for desktop state and `windows-use doctor --host <alias>` to verify SSH transport, authenticated desktop IPC and app enumeration. Doctor exits nonzero if desktop access is unavailable. The tray connection test separately checks local desktop access and an SSH banner; it cannot prove external routing/authentication. A paused client rejects all desktop reads and actions. Only the local tray resumes access, and a new snapshot is required afterward. Do not bypass a user's pause by starting another server. Settings and pause state persist across restarts. The tray reclaims confirmed-dead owner registrations; a live owner or unverifiable PID requires inspection.
+
+Doctor also compares `identities.caller`, `identities.installation` (remote RPC
+package) and `identities.server` (captured at server start). `buildId` distinguishes
+different payloads with the same version; `integrity` must be `verified`.
+`build.ok` requires matching builds and packaged skill hashes; `build.compatible`
+only checks protocol/capability support. Doctor exits 1 for either desktop or build
+failure. Unknown legacy identities are null. The skill hash describes the packaged
+skill; update the agent's separately installed skill from the same artifact.
+After disk replacement, `restart_required` blocks normal requests until the server
+is restarted through its normal interactive path. Older servers remain readable
+for diagnostics, but query, wait and input need the advertised safety capabilities.
+Do not retry failed input automatically.
+
+For an isolated test installation, carry `--remote-dir <package>` and
+`--remote-home <state-directory>` on every SSH call. The latter sets remote
+`WINDOWS_USE_HOME`; start the dedicated interactive server with that same home.
+`--remote-dir` alone does not isolate broker state. Never use isolation to bypass pause.
 
 ## Observe and act
 

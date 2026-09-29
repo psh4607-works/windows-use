@@ -2,7 +2,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType><TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion><AssemblyName>WindowsUse</AssemblyName>
-    <Version>0.2.0</Version><ApplicationManifest>app.manifest</ApplicationManifest>
+    <PackageJson>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../package.json'))</PackageJson>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($(PackageJson), '&quot;version&quot;\s*:\s*&quot;([^&quot;]+)&quot;').Groups[1].Value)</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <DebugType>none</DebugType><Deterministic>true</Deterministic>
   </PropertyGroup>
   <ItemGroup>

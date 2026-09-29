@@ -39,7 +39,7 @@ async function filesIn(directory, prefix = '') {
 }
 
 run(process.execPath, ['scripts/build.mjs']);
-run(process.env.DOTNET || 'dotnet', ['build', 'windows/WindowsUse/WindowsUse.csproj', '-c', 'Release', '--nologo']);
+run(process.env.DOTNET || 'dotnet', ['build', 'windows/WindowsUse/WindowsUse.csproj', '-c', 'Release', `-p:Version=${pkg.version}`, '--nologo']);
 const archivePath = join(cache, runtime.archive);
 let bytes;
 try { bytes = await readFile(archivePath); }
@@ -56,7 +56,7 @@ const extracted = join(cache, 'extracted');
 await rm(extracted, { recursive: true, force: true }); await mkdir(extracted);
 run('tar', ['-xf', archivePath, '-C', extracted]);
 await rm(payload, { recursive: true, force: true }); await mkdir(payload);
-for (const name of ['bin', 'src', 'dist', 'native', 'skills', 'package.json', 'LICENSE', 'NOTICE.md', 'README.md', 'provenance.json']) {
+for (const name of ['bin', 'src', 'dist', 'native', 'skills', 'build-manifest.json', 'package.json', 'LICENSE', 'NOTICE.md', 'README.md', 'provenance.json']) {
   await cp(join(root, name), join(payload, name), { recursive: true });
 }
 await mkdir(join(payload, 'docs'));

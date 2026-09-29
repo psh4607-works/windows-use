@@ -34,3 +34,20 @@ test('RPC rejects unknown operations with structured JSON and a nonzero exit', (
   assert.equal(response.ok, false);
   assert.match(response.error.message, /Unknown command/);
 });
+
+test('doctor retains installation identity when the desktop registration is absent, including RPC', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-no-server-'));
+  try {
+    for (const rpc of [false, true]) {
+      const result = spawnSync(process.execPath, [cli, rpc ? 'rpc' : 'doctor'], {
+        encoding: 'utf8', env: { ...process.env, WINDOWS_USE_HOME: directory },
+        input: rpc ? JSON.stringify({ command: 'doctor' }) : undefined
+      });
+      const body = JSON.parse(result.stdout);
+      assert.equal(body.ok, true, 'diagnostic response must survive a missing desktop');
+      assert.equal(body.result.desktop.ok, false);
+      assert.equal(body.result.identities.installation.integrity, 'verified');
+      assert.equal(result.status, rpc ? 0 : 1);
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
