@@ -90,6 +90,8 @@ public static class OrcaMsaa {
     private static bool IsProviderReadFailure(Exception error) {
         // COM interop maps common provider HRESULTs to these managed types.
         // Preserve unrelated failures instead of disguising them as omissions.
+        // Interop maps E_INVALIDARG to ArgumentException itself; argument-validation
+        // subclasses (ArgumentNullException/ArgumentOutOfRangeException) must propagate.
         return error is COMException || error is NotImplementedException ||
             error.GetType() == typeof(ArgumentException) || error is InvalidCastException;
     }
