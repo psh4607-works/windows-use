@@ -1,4 +1,5 @@
 import type { BridgeElement, BridgeResponse, BridgeSnapshot } from './desktop-script-provider-types'
+import { observationErrors } from '../../../../../src/observation-completeness.mjs'
 
 export const REDACTED = '[redacted]'
 
@@ -49,6 +50,7 @@ export function sanitizeResponse(response: BridgeResponse, secrets: string[] = [
   const clean = structuredClone(response)
   if (clean.snapshot) {
     const snapshot = clean.snapshot
+    snapshot.observationErrors = observationErrors(snapshot.observationErrors)
     // Native selector/protocol fields (including MSAA names) must remain stable.
     // Values and rendered text are the user-data surfaces; never rewrite all strings.
     snapshot.elements = snapshot.elements?.map(element => sensitiveElement(element)

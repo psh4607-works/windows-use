@@ -323,7 +323,7 @@ windows-use wait-for --app <pid> --session await-change --name Editor --conditio
   "result": {
     "snapshot": { "id": "…", "window": { "id": 123 } },
     "query": {
-      "matchCount": 1, "unique": true, "complete": true,
+      "matchCount": 1, "unique": true, "complete": true, "incompleteReasons": [],
       "matches": [{ "index": 4, "role": "ControlType.Edit", "roleLabel": "edit",
         "name": "Editor", "automationId": "editor", "value": "ready",
         "valueTruncated": false, "sensitive": false, "identity": [42, 88] }]
@@ -337,8 +337,18 @@ windows-use wait-for --app <pid> --session await-change --name Editor --conditio
 해당 관찰에서만 유효합니다. `unique: true`일 때 의도한 요소인지 확인한 후
 같은 app/session, `result.snapshot.window.id`, `result.session.observation`, 요소 `index`를
 다음 액션의 `--window-id`, `--observation`, `--element`에 사용하세요. 검색이 액션을
-자동 실행하지 않습니다. 0개/복수 후보도 목록으로 반환하며, 잘린 트리는 `complete: false`,
-`unique: false`입니다. 이 경우 선택자를 좁히거나 다시 관찰하세요.
+자동 실행하지 않습니다. 0개/복수 후보도 목록으로 반환합니다. 노드·깊이 제한이나 UIA/MSAA
+노드·하위 트리 조회 실패가 있으면 `complete: false`, `unique: false`입니다.
+`snapshot.observationErrors`는 조회 실패 종류와 개수를, `query.incompleteReasons`는
+조회 실패와 제한에 걸린 사유를 `{code, count}`로 제공합니다. 오류 메시지나 UI 내용은
+이 진단에 포함하지 않습니다. 선택적 속성 미지원은 조회 누락으로 세지 않습니다.
+불완전한 관찰은 선택자를 좁히는 것만으로 해결되지 않을 수 있으므로 원인을 확인한 뒤 다시 관찰하세요.
+
+MSAA가 `accChildCount`로 알려 준 개수보다 적은 자식을 반환하면 `S_FALSE`여도
+보수적으로 불완전한 관찰로 처리합니다. `S_FALSE` 자체는 COM 실패가 아니지만,
+현재 관찰만으로는 자식 수의 과대 보고와 열거 중 변경·누락을 구분할 수 없기 때문입니다.
+따라서 자식 수를 지속해서 과대 보고하는 앱의 query/wait는 불완전한 결과로 종료할 수 있습니다.
+API의 반환 규약은 [AccessibleChildren 문서](https://learn.microsoft.com/en-us/windows/win32/api/oleacc/nf-oleacc-accessiblechildren)를 참고하세요.
 
 `role`은 UIA의 `ControlType.Edit` 같은 programmatic name, MSAA의 `MSAA.42` 같은
 네이티브 역할입니다. MSAA 사용자 정의 역할은 `MSAA.custom.<role>`입니다. 번역된 표시 역할은
@@ -356,6 +366,10 @@ windows-use wait-for --app <pid> --session await-change --name Editor --conditio
 `--timeout-ms`는 1–600000ms(기본 10000), `--poll-ms`는 50–10000ms(기본 250)입니다.
 처음 선택한 HWND를 고정하며 닫히면 다른 창으로 옮겨가지 않습니다. 조건 충족 시 최신
 관찰 토큰을 반환하고, 복수 후보·불완전한 트리·pause/재개·서버 재시작은 오류로 종료합니다.
+모든 조건에서 불완전한 snapshot은 `incomplete_observation`으로 종료하고 입력을 실행하지 않습니다.
+`window` 조건도 성공 시 후속 액션에 사용할 관찰을 반환하므로 이 제한을 적용합니다.
+창이 존재해도 노드·깊이 제한에 걸린 큰 창은 실패할 수 있으며, 창의 존재만 확인하려면
+`windows` 명령으로 조회하세요. 이 경우 오류 메시지는 창 발견과 관찰의 불완전함을 구분합니다.
 호출 측과 Windows 서버를 함께 업데이트해야 합니다. 이전 서버의 읽기 응답에 접근 세대값이 없으면
 `unsupported_wait`로 실패합니다.
 

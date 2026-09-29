@@ -73,6 +73,13 @@ multiple windows exist, specify `--window-id`; no arbitrary window is selected.
 The result contains `query.matches`, `matchCount`, `unique`, `complete`, snapshot
 window metadata and a new session observation. Act only after inspecting a unique,
 complete result, using its window ID, element index, session and observation token.
+Node/depth limits and failed node/subtree reads make both `complete` and `unique`
+false. `snapshot.observationErrors` and `query.incompleteReasons` carry safe
+`{code, count}` diagnostics; optional unsupported properties are not omissions.
+MSAA child-count mismatches are conservatively incomplete even when enumeration
+returns `S_FALSE`: a successful short read does not distinguish an overreported
+count from a changing tree. Providers that persistently overreport child counts
+can therefore remain incomplete on every query/wait.
 Query never chooses or executes an action. Never pick the first ambiguous match.
 
 Roles are native identifiers: UIA `ControlType.Edit`, MSAA `MSAA.42`, or MSAA
@@ -93,7 +100,12 @@ Carry host/remote-dir options through every call. Wait conditions are `element`
 (default), `window` (no element selectors), `value` (exact `--value`/`--value-file`),
 and `changed` (relative to its first readable match, tracking native identity).
 Sensitive, unavailable or truncated values cannot be compared. Ambiguous matches,
-truncated trees and replaced native identities require a narrower/new observation.
+incomplete trees and replaced native identities require a new observation after
+addressing the cause. Every wait condition rejects partial snapshots with
+`incomplete_observation`; no successful observation or input is returned.
+This deliberately includes `window` waits because they return an observation for
+later actions. Large trees that hit node/depth limits can fail even after the
+window is found. Use `windows` when only window existence is needed.
 
 Wait pins the first unique HWND and stops if it closes. It polls only reads from the
 caller, releasing the broker between polls. Deadline includes SSH/queue/read time;

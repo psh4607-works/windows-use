@@ -51,6 +51,7 @@ export function renderSnapshot(
       treeText,
       elementCount: snapshot.elements?.length ?? 0,
       focusedElementId,
+      observationErrors: snapshot.observationErrors ?? [],
       truncation: {
         truncated: snapshot.truncation?.truncated === true,
         maxNodes: snapshot.truncation?.maxNodes,

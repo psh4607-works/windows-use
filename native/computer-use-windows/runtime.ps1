@@ -666,13 +666,13 @@ function Test-OrcaPlainTextSubtree($Element, [int]$MaxDepth = 4) {
         $roleKey = $role.ToLowerInvariant()
         if ($allowed -notcontains $roleKey) { return $false }
         if ($roleKey -match "text|link") { $script:sawOrcaText = $true }
-        if (@(Get-OrcaMeaningfulActions @(Get-OrcaActions $Node)).Count -gt 0) { return $false }
         try {
+            if (@(Get-OrcaMeaningfulActions @(Get-OrcaActions $Node)).Count -gt 0) { return $false }
             $children = $Node.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)
             for ($i = 0; $i -lt $children.Count; $i++) {
                 if (-not (Visit-OrcaPlainText $children.Item($i) ($Depth + 1))) { return $false }
             }
-        } catch {}
+        } catch { return $false }
         return $true
     }
 
@@ -716,11 +716,17 @@ function Render-OrcaTree($RootElement, $WindowFrame, [bool]$CompactBrowserTabs =
     $records = New-Object System.Collections.Generic.List[object]
     $lines = New-Object System.Collections.Generic.List[string]
     $seen = New-Object System.Collections.Generic.HashSet[string]
+    $observationErrorCounts = [ordered]@{}
     $truncation = [pscustomobject]@{
         truncated = $false
         maxNodes = $MaxNodes
         maxDepth = $MaxDepth
         maxDepthReached = $false
+    }
+
+    function Add-OrcaObservationOmission([string]$Code) {
+        if ($observationErrorCounts.Contains($Code)) { $observationErrorCounts[$Code]++ }
+        else { $observationErrorCounts[$Code] = 1 }
     }
 
     function Visit-OrcaNode($Node, [int]$Depth) {
@@ -732,11 +738,16 @@ function Render-OrcaTree($RootElement, $WindowFrame, [bool]$CompactBrowserTabs =
         $identity = try { (@($Node.GetRuntimeId()) -join ".") } catch { [Guid]::NewGuid().ToString() }
         if (-not $seen.Add($identity)) { return }
 
-        $record = New-OrcaElementRecord $Node $records.Count $WindowFrame
+        try { $record = New-OrcaElementRecord $Node $records.Count $WindowFrame }
+        catch {
+            Add-OrcaObservationOmission 'uia_node_unavailable'
+            return
+        }
         $children = @()
+        $childrenUnavailable = $false
         try {
             $children = @($Node.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition))
-        } catch {}
+        } catch { $childrenUnavailable = $true }
         $meaningfulActions = @(Get-OrcaMeaningfulActions $record.actions)
         $title = if ([string]::IsNullOrWhiteSpace($record.name)) { $record.automationId } else { $record.name }
         $role = if ([string]::IsNullOrWhiteSpace($record.localizedControlType)) { $record.controlType } else { $record.localizedControlType }
@@ -748,6 +759,11 @@ function Render-OrcaTree($RootElement, $WindowFrame, [bool]$CompactBrowserTabs =
                 $genericSummary = ($snippets -join " ")
             }
         }
+        $suppressChildren = -not [string]::IsNullOrWhiteSpace($genericSummary) -or (Test-OrcaSuppressChildren $roleKey $title $record.value $genericSummary)
+        # Only report failures that omit the traversal's requested subtree. Compact
+        # controls deliberately suppress descendants; summary probes are presentation
+        # helpers and must fall back to the main traversal if their read fails.
+        if ($childrenUnavailable -and -not $suppressChildren) { Add-OrcaObservationOmission 'uia_children_unavailable' }
         if (($roleKey -in @("pane", "group", "custom", "unknown")) -and [string]::IsNullOrWhiteSpace($title) -and [string]::IsNullOrWhiteSpace($record.value) -and $meaningfulActions.Count -eq 0 -and $null -eq $genericSummary -and $children.Count -le 1) {
             for ($i = 0; $i -lt $children.Count; $i++) {
                 Visit-OrcaNode $children.Item($i) $Depth
@@ -772,7 +788,7 @@ function Render-OrcaTree($RootElement, $WindowFrame, [bool]$CompactBrowserTabs =
         }
         $lines.Add(("`t" * $Depth) + $line)
 
-        if (-not [string]::IsNullOrWhiteSpace($genericSummary) -or (Test-OrcaSuppressChildren $roleKey $title $record.value $genericSummary)) { return }
+        if ($suppressChildren) { return }
         $childLineStart = $lines.Count
         for ($i = 0; $i -lt $children.Count; $i++) {
             Visit-OrcaNode $children.Item($i) ($Depth + 1)
@@ -783,7 +799,10 @@ function Render-OrcaTree($RootElement, $WindowFrame, [bool]$CompactBrowserTabs =
     }
 
     Visit-OrcaNode $RootElement 0
-    [pscustomobject]@{ elements = @($records.ToArray()); lines = @($lines.ToArray()); truncation = $truncation }
+    [pscustomobject]@{
+        elements = @($records.ToArray()); lines = @($lines.ToArray()); truncation = $truncation
+        observationErrors = @($observationErrorCounts.Keys | ForEach-Object { [pscustomobject]@{ code = $_; count = $observationErrorCounts[$_] } })
+    }
 }
 
 function Compress-OrcaRenderedBrowserTabs($Records, $Lines, [int]$StartLine, [int]$Depth) {
@@ -965,6 +984,7 @@ function Get-OrcaMsaaTree($Process, $WindowFrame) {
     if ($raw.errors -gt 0) { $lines += "MSAA: $($raw.errors) inaccessible nodes omitted" }
     [pscustomobject]@{
         raw = $raw; elements = $raw.elements; lines = $lines
+        observationErrors = @($raw.observationErrors)
         truncation = [pscustomobject]@{truncated=$raw.truncated;maxNodes=$MaxNodes;maxDepth=$MaxDepth;maxDepthReached=$raw.maxDepthReached}
     }
 }
@@ -1004,6 +1024,7 @@ function New-OrcaSnapshot([string]$Query, [bool]$IncludeScreenshot, $WindowId = 
         coordinateSpace = "window"
         accessibility = $Accessibility
         truncation = $tree.truncation
+        observationErrors = @($tree.observationErrors)
         treeLines = @($tree.lines)
         focusedSummary = $null
         focusedElementId = $null
