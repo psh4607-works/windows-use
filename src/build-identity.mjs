@@ -20,13 +20,13 @@ async function payloadFiles(root) {
     catch (error) { if (error.code === 'ENOENT') return; throw error; }
     for (const entry of entries) {
       const name = `${relative}/${entry.name}`;
-      if (!validPayloadName(name)) throw new Error('Unsupported build payload file name');
       // npm silently drops these entries. Reject them so npm and Windows copies
       // cannot acquire different inventories from the same source build.
       if (entry.name.startsWith('.') || /(?:\.orig|~)$/.test(entry.name) ||
           ['node_modules', 'CVS', 'npm-debug.log', 'package-lock.json', 'config.gypi'].includes(entry.name)) {
         throw new Error('npm-excluded entry in build payload; remove it before packaging');
       }
+      if (!validPayloadName(name)) throw new Error('Unsupported build payload file name');
       if (entry.isDirectory()) await walk(name);
       else if (entry.isFile()) names.push(name);
       else throw new Error('Unsupported build payload entry');

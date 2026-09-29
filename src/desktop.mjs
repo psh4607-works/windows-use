@@ -166,7 +166,8 @@ export async function requestDesktop(request, { directory = defaultDirectory(), 
     }
     const result = await callBroker(request, limits());
     if (['status', 'doctor'].includes(request.command)) {
-      if (!result || typeof result !== 'object' || Array.isArray(result)) throw Object.assign(
+      const invalid = value => !value || typeof value !== 'object' || Array.isArray(value);
+      if (invalid(result) || (result.identities !== undefined && invalid(result.identities))) throw Object.assign(
         new Error('Desktop server returned an invalid diagnostic response.'), { code: 'invalid_response' });
       return { ...result, identities: { ...result.identities, installation: await readBuildIdentity() } };
     }

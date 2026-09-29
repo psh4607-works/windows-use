@@ -26,9 +26,12 @@ test('build manifest distinguishes same-version payloads and detects changed ski
     assert.notEqual(a.buildId, b.buildId);
     assert.notEqual(a.skillSha256, b.skillSha256);
     assert.ok(!JSON.stringify(b).includes(root));
-    await writeFile(join(root, 'skills/.DS_Store'), 'finder');
-    await assert.rejects(api.writeBuildManifest(root), /excluded.*payload/i);
-    await rm(join(root, 'skills/.DS_Store'));
+    for (const name of ['.DS_Store', 'backup.js~']) {
+      const path = join(root, 'skills', name);
+      await writeFile(path, 'excluded payload');
+      await assert.rejects(api.writeBuildManifest(root), /excluded.*payload/i);
+      await rm(path);
+    }
     for (const name of ['with space', 'plus+', 'at@', '한글']) {
       const path = join(root, 'skills', name);
       await writeFile(path, 'payload');
@@ -49,7 +52,7 @@ test('malformed broker diagnostics are distinguished from an unavailable desktop
   const broker = await startBroker({ ...config, handler: async () => response });
   try {
     await writeFile(join(directory, 'server.json'), JSON.stringify(config));
-    for (response of [null, false, 42, 'invalid', []]) {
+    for (response of [null, false, 42, 'invalid', [], { identities: null }, { identities: 'x' }, { identities: ['x'] }]) {
       const report = await requestDesktop({ command: 'doctor' }, { directory });
       assert.equal(report.desktop.code, 'invalid_response');
       assert.equal(report.desktop.ok, false);
