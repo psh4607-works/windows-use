@@ -9,6 +9,8 @@ export const CAPABILITIES = Object.freeze({ observationSafety: 1, query: 1, wait
 const roots = ['bin', 'src', 'dist', 'native', 'skills'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const validHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const validPayloadName = name => /^(package\.json|(?:bin|src|dist|native|skills)\/[A-Za-z0-9_.\/-]+)$/.test(name) &&
+  !name.split('/').some(part => part === '..' || part === '.' || !part);
 
 async function payloadFiles(root) {
   const names = ['package.json'];
@@ -18,6 +20,7 @@ async function payloadFiles(root) {
     catch (error) { if (error.code === 'ENOENT') return; throw error; }
     for (const entry of entries) {
       const name = `${relative}/${entry.name}`;
+      if (!validPayloadName(name)) throw new Error('Unsupported build payload file name');
       // npm silently drops these entries. Reject them so npm and Windows copies
       // cannot acquire different inventories from the same source build.
       if (entry.name.startsWith('.') || /(?:\.orig|~)$/.test(entry.name) ||
@@ -54,9 +57,7 @@ export async function readBuildIdentity(root = rootDirectory) {
     try { manifest = JSON.parse(await readFile(join(root, 'build-manifest.json'), 'utf8')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (manifest && (manifest.schemaVersion !== 1 || !validHash(manifest.buildId) || !manifest.files ||
-        Object.entries(manifest.files).some(([name, digest]) => !validHash(digest) ||
-          !/^(package\.json|(?:bin|src|dist|native|skills)\/[A-Za-z0-9_.\/-]+)$/.test(name) ||
-          name.split('/').some(part => part === '..' || part === '.' || !part)))) throw new Error('Invalid manifest');
+        Object.entries(manifest.files).some(([name, digest]) => !validHash(digest) || !validPayloadName(name)))) throw new Error('Invalid manifest');
     const integrity = !manifest ? 'missing' : JSON.stringify(manifest) === JSON.stringify(current) ? 'verified' : 'mismatch';
     const { files, ...identity } = current;
     return { ...identity, integrity };

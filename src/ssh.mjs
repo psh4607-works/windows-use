@@ -1,7 +1,8 @@
 export function sshInvocation(host, remoteDir, remoteHome, guarded = false) {
   if (typeof host !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.@:-]*$/.test(host)) throw new Error('Invalid SSH host alias');
-  if (remoteDir && /[\r\n\0]/.test(remoteDir)) throw new Error('Invalid remote directory');
-  if (remoteHome && /[\r\n\0]/.test(remoteHome)) throw new Error('Invalid remote home');
+  // PowerShell also treats smart single quotes as string delimiters.
+  if (remoteDir && /[\r\n\0\u2018-\u201b]/.test(remoteDir)) throw new Error('Invalid remote directory');
+  if (remoteHome && /[\r\n\0\u2018-\u201b]/.test(remoteHome)) throw new Error('Invalid remote home');
   const home = remoteHome ? `$env:WINDOWS_USE_HOME='${remoteHome.replaceAll("'", "''")}';` : '';
   const root = remoteDir
     ? `$root='${remoteDir.replaceAll("'", "''")}';`

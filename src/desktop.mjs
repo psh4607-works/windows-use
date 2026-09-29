@@ -165,13 +165,18 @@ export async function requestDesktop(request, { directory = defaultDirectory(), 
       }
     }
     const result = await callBroker(request, limits());
-    if (['status', 'doctor'].includes(request.command)) return { ...result,
-      identities: { ...result.identities, installation: await readBuildIdentity() } };
+    if (['status', 'doctor'].includes(request.command)) {
+      if (!result || typeof result !== 'object' || Array.isArray(result)) throw Object.assign(
+        new Error('Desktop server returned an invalid diagnostic response.'), { code: 'invalid_response' });
+      return { ...result, identities: { ...result.identities, installation: await readBuildIdentity() } };
+    }
     return result;
   }
   catch (error) {
     if (request.command === 'doctor') return { state: 'unavailable',
-      desktop: { ok: false, code: 'desktop_unavailable', message: 'Desktop broker is unavailable. Inspect the local client and restart in the interactive desktop session.' },
+      desktop: { ok: false, code: error.code === 'invalid_response' ? error.code : 'desktop_unavailable',
+        message: error.code === 'invalid_response' ? 'Desktop server returned an invalid diagnostic response.' :
+          'Desktop broker is unavailable. Inspect the local client and restart in the interactive desktop session.' },
       identities: { installation: await readBuildIdentity(), server: null } };
     if (['ENOENT', 'ECONNREFUSED'].includes(error.code)) throw new Error('Desktop server is unavailable. Start windows-use serve in the Windows desktop session; do not start it over SSH.');
     throw error;

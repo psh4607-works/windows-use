@@ -80,6 +80,13 @@ test('guarded SSH requests use a separate RPC verb that legacy CLI cannot forwar
   assert.match(script, /\$entry identity-rpc;/);
 });
 
+test('remote paths reject PowerShell Unicode quote delimiters before SSH dispatch', () => {
+  for (const quote of ['\u2018', '\u2019', '\u201a', '\u201b']) {
+    assert.throws(() => sshInvocation('fixture', `C:\\path${quote}; injected`), /directory/i);
+    assert.throws(() => sshInvocation('fixture', undefined, `C:\\path${quote}; injected`), /home/i);
+  }
+});
+
 test('doctor reports failed SSH diagnostics without leaking remote stderr paths', async () => {
   const { identityReader } = await api();
   const caller = await readBuildIdentity();

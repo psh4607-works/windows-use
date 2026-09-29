@@ -29,11 +29,34 @@ test('build manifest distinguishes same-version payloads and detects changed ski
     await writeFile(join(root, 'skills/.DS_Store'), 'finder');
     await assert.rejects(api.writeBuildManifest(root), /excluded.*payload/i);
     await rm(join(root, 'skills/.DS_Store'));
+    for (const name of ['with space', 'plus+', 'at@', '한글']) {
+      const path = join(root, 'skills', name);
+      await writeFile(path, 'payload');
+      await assert.rejects(api.writeBuildManifest(root), /unsupported.*name/i);
+      await rm(path);
+    }
     const manifest = JSON.parse(await readFile(join(root, 'build-manifest.json'), 'utf8'));
     manifest.files['../../outside'] = '0'.repeat(64);
     await writeFile(join(root, 'build-manifest.json'), JSON.stringify(manifest));
     assert.equal((await api.readBuildIdentity(root)).integrity, 'invalid');
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('malformed broker diagnostics are distinguished from an unavailable desktop', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-invalid-diagnostic-'));
+  const config = { endpoint: process.platform === 'win32' ? `\\\\.\\pipe\\wu-invalid-${randomUUID()}` : join(directory, 'invalid.sock'), token: 'fixture', pid: process.pid };
+  let response = null;
+  const broker = await startBroker({ ...config, handler: async () => response });
+  try {
+    await writeFile(join(directory, 'server.json'), JSON.stringify(config));
+    for (response of [null, false, 42, 'invalid', []]) {
+      const report = await requestDesktop({ command: 'doctor' }, { directory });
+      assert.equal(report.desktop.code, 'invalid_response');
+      assert.equal(report.desktop.ok, false);
+      assert.equal(report.identities.installation.integrity, 'verified');
+      await assert.rejects(requestDesktop({ command: 'status' }, { directory }), { code: 'invalid_response' });
+    }
+  } finally { await broker.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('server identity is pinned at start and disk drift blocks native work', async () => {

@@ -199,7 +199,7 @@ test('doctor with a null broker result preserves build diagnostics with its capt
   assert.equal(code, 1);
   assert.equal(response.ok, false);
   assert.equal(response.result.desktop.ok, false);
-  assert.equal(response.result.desktop.code, 'desktop_unavailable');
+  assert.equal(response.result.desktop.code, 'invalid_response');
   assert.equal(response.result.identities.caller.integrity, 'verified');
   assert.equal(response.result.identities.installation.integrity, 'verified');
   assert.equal(response.result.identities.server, null);

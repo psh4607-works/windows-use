@@ -91,7 +91,7 @@ try {
     }
     const screenshotPath = !rpc && options.screenshot ? resolve(options.screenshot) : undefined;
     if (screenshotPath) await preflightScreenshot(screenshotPath);
-    const identity = await readBuildIdentity();
+    const identity = rpc ? undefined : await readBuildIdentity();
     const transport = (req, limits) => !rpc && options.host
       ? sendRequest(sshInvocation(options.host, options.remoteDir, options.remoteHome, !!req.callerIdentity), req, limits)
       : requestDesktop(req, limits);
