@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseCli } from '../src/arguments.mjs';
 import { startDesktop, requestDesktop } from '../src/desktop.mjs';
 import { sshInvocation } from '../src/ssh.mjs';
 import { sendRequest } from '../src/transport.mjs';
 import { waitFor } from '../src/wait-for.mjs';
+import { preflightScreenshot, saveScreenshot } from '../src/screenshot-output.mjs';
 
 const help = `windows-use — standalone Windows UI Automation (Node.js 22+)
 
@@ -47,6 +48,8 @@ Snapshots expire after two minutes. Re-observe after errors or another task's in
 Query/wait never focus or send input; no --window-index or --screenshot.
 wait-for value uses --value/--value-file; changed compares against its first match.
 Ambiguous waits fail; timeout is wait_timeout with exit 1. Ctrl+C cancels the wait.
+Screenshot failures exit 1. Post-input failures preserve result and screenshotOutput;
+inspect action.verification and the new observation before any input. Never replay to save an image.
 `;
 
 async function readStdin() {
@@ -82,6 +85,8 @@ try {
         }
       }
     }
+    const screenshotPath = !rpc && options.screenshot ? resolve(options.screenshot) : undefined;
+    if (screenshotPath) await preflightScreenshot(screenshotPath);
     const read = (req, limits) => !rpc && options.host
       ? sendRequest(sshInvocation(options.host, options.remoteDir), req, limits)
       : requestDesktop(req, limits);
@@ -93,17 +98,13 @@ try {
       try { result = await waitFor(request, { read, signal: controller.signal }); }
       finally { process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel); }
     } else result = await read(request);
-    if (!rpc && options.screenshot) {
-      if (!result.screenshot?.data) throw new Error(result.screenshotStatus?.message ?? 'Screenshot was not captured');
-      const path = resolve(options.screenshot);
-      await writeFile(path, Buffer.from(result.screenshot.data, 'base64'), { flag: 'wx', mode: 0o600 });
-      const { data, ...metadata } = result.screenshot;
-      result = { ...result, screenshot: { ...metadata, path } };
-    }
-    process.stdout.write(`${JSON.stringify({ ok: true, result })}\n`);
+    const response = screenshotPath ? await saveScreenshot(result, screenshotPath) : { ok: true, result };
+    process.stdout.write(`${JSON.stringify(response)}\n`);
+    if (!response.ok) process.exitCode = 1;
     if (!rpc && request.command === 'doctor' && result.desktop?.ok !== true) process.exitCode = 1;
   }
 } catch (error) {
-  process.stdout.write(`${JSON.stringify({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message } })}\n`);
+  process.stdout.write(`${JSON.stringify({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message },
+    ...(error.screenshotOutput && { screenshotOutput: error.screenshotOutput }) })}\n`);
   process.exitCode = 1;
 }
