@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { validateQuery, queryError } from './query.mjs';
+import { incompleteReasons } from './observation-completeness.mjs';
 
 // This orchestrator runs in the caller, never in the serialized desktop broker.
 export async function waitFor(request, { read, now = () => performance.now(), sleep = delay, signal } = {}) {
@@ -87,8 +88,12 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
         if (!Number.isSafeInteger(windowId) || windowId <= 0 || result.snapshot?.window?.id !== windowId) {
           throw queryError('invalid_observation', 'The observation does not belong to the pinned window.');
         }
+        const reasons = incompleteReasons(result.snapshot);
+        if (reasons.length || (condition !== 'window' && !result.query.complete)) {
+          const summary = reasons.map(reason => `${reason.code} (${reason.count})`).join(', ');
+          throw queryError('incomplete_observation', `The accessibility tree is incomplete; uniqueness cannot be established.${summary ? ` Reasons: ${summary}.` : ''}`);
+        }
         if (condition !== 'window') {
-          if (!result.query.complete) throw queryError('incomplete_observation', 'The accessibility tree is incomplete; uniqueness cannot be established.');
           if (result.query.matchCount > 1) throw queryError('ambiguous_selector', 'Multiple elements match; narrow the selectors.');
         }
         let satisfied = condition === 'window' || result.query.unique;

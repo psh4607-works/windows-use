@@ -26,12 +26,17 @@ public class MsaaFixture : Accessibility.IAccessible {
     public object Role = 43;
     public int State, Invocations, ValueReads, LastChild = -1;
     public int Error = unchecked((int)0x80020003);
+    public string ErrorMessage = "fixture provider failure";
+    public bool MapNotImplemented;
+    public int ChildrenError, ReturnedChildren = -1;
     public object[] Children = new object[0];
     private void Check(string property) {
-        if (Unsupported == property) throw new System.Runtime.InteropServices.COMException(property, Error);
+        if (Unsupported == property && MapNotImplemented && Error == unchecked((int)0x80004001))
+            throw new System.NotImplementedException(ErrorMessage);
+        if (Unsupported == property) throw new System.Runtime.InteropServices.COMException(ErrorMessage, Error);
     }
     public object get_accState(object child) { Check("state"); return State; }
-    public object get_accRole(object child) { return Role; }
+    public object get_accRole(object child) { Check("role"); return Role; }
     public string get_accName(object child) { Check("name"); return Name; }
     public string get_accDescription(object child) { Check("description"); return Description; }
     public string get_accHelp(object child) { Check("help"); return Help; }
@@ -40,7 +45,7 @@ public class MsaaFixture : Accessibility.IAccessible {
     public void accLocation(out int x, out int y, out int width, out int height, object child) {
         Check("location"); x = y = 10; width = height = 20;
     }
-    public int accChildCount { get { return Children.Length; } }
+    public int accChildCount { get { Check("children"); return Children.Length; } }
     public void accDoDefaultAction(object child) { Invocations++; LastChild = (int)child; }
     public void accSelect(int flags, object child) { LastChild = (int)child; }
     public void set_accValue(object child, string value) { LastChild = (int)child; Value = value; }
@@ -67,8 +72,11 @@ public static class MsaaFixtureNative {
         out Accessibility.IAccessible accessible) { accessible = Root; return 0; }
     public static int AccessibleChildren(Accessibility.IAccessible accessible, int start, int count,
         object[] children, out int obtained) {
-        object[] source = ((MsaaFixture)accessible).Children;
+        var fixture = (MsaaFixture)accessible;
+        object[] source = fixture.Children;
         obtained = System.Math.Min(count, source.Length - start);
+        if (fixture.ChildrenError != 0) { obtained = 0; return fixture.ChildrenError; }
+        if (fixture.ReturnedChildren >= 0) obtained = System.Math.Min(obtained, fixture.ReturnedChildren);
         System.Array.Copy(source, start, children, 0, obtained);
         return 0;
     }

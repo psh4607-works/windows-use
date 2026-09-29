@@ -1,3 +1,5 @@
+import { incompleteReasons, observationErrors } from './observation-completeness.mjs';
+
 export function queryError(code, message) {
   return Object.assign(new Error(message), { code });
 }
@@ -45,6 +47,9 @@ export async function observeQuery(provider, params) {
     (params.automationId === undefined || element.automationId === params.automationId)
   );
   const { treeText, ...snapshot } = result.snapshot;
-  const complete = raw?.truncation?.truncated !== true && raw?.truncation?.maxDepthReached !== true;
-  return { snapshot, query: { matchCount: matches.length, unique: complete && matches.length === 1, complete, matches } };
+  snapshot.observationErrors = observationErrors(raw.observationErrors);
+  const reasons = incompleteReasons(raw);
+  const complete = reasons.length === 0;
+  return { snapshot, query: { matchCount: matches.length, unique: complete && matches.length === 1,
+    complete, incompleteReasons: reasons, matches } };
 }

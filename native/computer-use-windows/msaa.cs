@@ -25,6 +25,12 @@ public sealed class OrcaMsaaTree {
     public OrcaMsaaNode[] elements;
     public bool truncated, maxDepthReached;
     public int errors;
+    public OrcaMsaaObservationError[] observationErrors = new OrcaMsaaObservationError[0];
+}
+
+public sealed class OrcaMsaaObservationError {
+    public string code;
+    public int count;
 }
 
 public static class OrcaMsaa {
@@ -51,6 +57,16 @@ public static class OrcaMsaa {
         return value.Length <= length ? value : value.Substring(0, length) + "...";
     }
 
+    private static void RecordOmission(OrcaMsaaTree result, string code, int count) {
+        result.errors += count;
+        foreach (var error in result.observationErrors) {
+            if (error.code == code) { error.count += count; return; }
+        }
+        var errors = new List<OrcaMsaaObservationError>(result.observationErrors);
+        errors.Add(new OrcaMsaaObservationError { code = code, count = count });
+        result.observationErrors = errors.ToArray();
+    }
+
     private static bool Sensitive(params string[] metadata) {
         // Match runtime.ps1's Test-OrcaSensitiveElement before reading accValue.
         string haystack = Regex.Replace(String.Join(" ", metadata), @"\s+", " ").ToLowerInvariant();
@@ -62,6 +78,9 @@ public static class OrcaMsaa {
 
     private static T Optional<T>(Func<T> read, T fallback) {
         try { return read(); }
+        // COM interop can map E_NOTIMPL to a managed exception before it reaches
+        // this optional-property boundary (including cross-process providers).
+        catch (NotImplementedException) { return fallback; }
         catch (COMException error) {
             if (error.ErrorCode != unchecked((int)0x80020003) && error.ErrorCode != unchecked((int)0x80004001)) throw;
             return fallback;
@@ -114,6 +133,7 @@ public static class OrcaMsaa {
             if (depth > maxDepth) result.maxDepthReached = true;
             return;
         }
+        bool recorded = false;
         try {
             int[] identity = Identity(accessible, child, window);
             int state = Convert.ToInt32(accessible.get_accState(child));
@@ -159,6 +179,7 @@ public static class OrcaMsaa {
                 frame = frame,
                 actions = actions.ToArray(), accessible = accessible, child = child, state = state
             });
+            recorded = true;
             if (child != 0) return;
             int actualCount = accessible.accChildCount;
             int count = Math.Min(actualCount, Math.Max(0, maxNodes - nodes.Count));
@@ -166,11 +187,14 @@ public static class OrcaMsaa {
             if (count == 0) return;
             var children = new object[count]; int obtained;
             Marshal.ThrowExceptionForHR(AccessibleChildren(accessible, 0, count, children, out obtained));
+            if (obtained < count) RecordOmission(result, "msaa_children_unavailable", count - Math.Max(0, obtained));
+            obtained = Math.Max(0, Math.Min(count, obtained));
             for (int i = 0; i < obtained; i++) {
-                if (children[i] is int) Visit(accessible, (int)children[i], depth + 1, window, left, top, maxNodes, maxDepth, textLimit, nodes, result);
-                else if (children[i] != null) Visit((IAccessible)children[i], 0, depth + 1, window, left, top, maxNodes, maxDepth, textLimit, nodes, result);
+                if (children[i] is int && (int)children[i] != 0) Visit(accessible, (int)children[i], depth + 1, window, left, top, maxNodes, maxDepth, textLimit, nodes, result);
+                else if (children[i] is IAccessible) Visit((IAccessible)children[i], 0, depth + 1, window, left, top, maxNodes, maxDepth, textLimit, nodes, result);
+                else RecordOmission(result, "msaa_node_unavailable", 1);
             }
-        } catch (COMException) { result.errors++; }
+        } catch (COMException) { RecordOmission(result, recorded ? "msaa_children_unavailable" : "msaa_node_unavailable", 1); }
     }
 
     public static OrcaMsaaNode Resolve(OrcaMsaaTree tree, int[] identity, string name, string controlType) {
