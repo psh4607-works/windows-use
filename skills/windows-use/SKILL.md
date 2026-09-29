@@ -93,6 +93,16 @@ so waits need no separate status requests and still reject pause during a read.
 
 ## Recovery
 
+- With `--screenshot`, exit 1 / `ok:false` can mean only image capture or local saving failed.
+  Read the JSON even on nonzero exit: `screenshotOutput.stage: preflight` means no request
+  was sent; `capture` or `save` preserves the received `result.action.verification`, snapshot
+  and fresh session observation. Inspect those before any input; never replay input to retry
+  an image. Use a separate snapshot and new output path instead. Only
+  `screenshotOutput.status: saved` confirms a complete local file; a failed write can leave
+  a partial new file. The remote `screenshotStatus` describes capture, not local saving.
+  Preflight permission checks do not evaluate Windows ACLs, so an ACL denial can occur
+  after input at the save stage. A missing response result is reported as `result:null`
+  with `stage:capture`; obtain a fresh snapshot before deciding what input to send.
 - A timeout, disconnected host, failed action, stale observation, or changed window requires a new snapshot before retrying. Do not automatically replay input whose result is unknown.
 - Use a separate session for each task; a busy session must not be shared or unlocked while another caller owns it.
 - If the desktop server is unavailable, restore the server in the actual Windows desktop session. Do not start it through SSH and claim desktop access.
