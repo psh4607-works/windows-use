@@ -6,6 +6,8 @@ import { startDesktop, requestDesktop } from '../src/desktop.mjs';
 import { sshInvocation } from '../src/ssh.mjs';
 import { sendRequest } from '../src/transport.mjs';
 import { waitFor } from '../src/wait-for.mjs';
+import { readBuildIdentity } from '../src/build-identity.mjs';
+import { identityReader } from '../src/identity-protocol.mjs';
 import { preflightScreenshot, saveScreenshot } from '../src/screenshot-output.mjs';
 
 const help = `windows-use — standalone Windows UI Automation (Node.js 22+)
@@ -25,6 +27,8 @@ Act:     windows-use set-value --app Notepad --session my-task \\
            --observation <latest-session.observation> --element 4 --value "text"
 
 --host <alias>                    Run against the installed remote Windows package
+--remote-dir <path>               Select a remote package directory
+--remote-home <path>              Select its WINDOWS_USE_HOME (must match the server)
 --session <task-id>               Isolate observed elements for this task
 --observation <token>             Required for actions; use the latest snapshot token
 --window-id <id> | --window-index <index>
@@ -64,7 +68,7 @@ async function readStdin() {
 
 try {
   const options = parseCli(process.argv.slice(2));
-  if (options.version) process.stdout.write('0.2.0\n');
+  if (options.version) process.stdout.write(`${JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).version}\n`);
   else if (options.help) process.stdout.write(help);
   else if (options.request.command === 'serve') {
     if (process.platform !== 'win32' || options.host) throw new Error('Run serve directly in the interactive Windows desktop session.');
@@ -75,7 +79,7 @@ try {
     process.stdout.write(`${JSON.stringify({ ok: true, mode: 'desktop-server', transport: 'named-pipe' })}\n`);
   } else {
     let request = options.request;
-    const rpc = request.command === 'rpc';
+    const rpc = ['rpc', 'identity-rpc'].includes(request.command);
     if (rpc) request = JSON.parse(await readStdin());
     else {
       for (const [source, field] of [[options.textFile, 'text'], [options.valueFile, 'value']]) {
@@ -87,9 +91,12 @@ try {
     }
     const screenshotPath = !rpc && options.screenshot ? resolve(options.screenshot) : undefined;
     if (screenshotPath) await preflightScreenshot(screenshotPath);
-    const read = (req, limits) => !rpc && options.host
-      ? sendRequest(sshInvocation(options.host, options.remoteDir), req, limits)
+    const identity = rpc ? undefined : await readBuildIdentity();
+    const transport = (req, limits) => !rpc && options.host
+      ? sendRequest(sshInvocation(options.host, options.remoteDir, options.remoteHome, !!req.callerIdentity), req, limits)
       : requestDesktop(req, limits);
+    // RPC preserves the original caller's preflight and identity unchanged.
+    const read = rpc ? transport : identityReader(transport, identity, { localInstallation: options.host ? undefined : identity });
     let result;
     if (request.command === 'wait-for') {
       const controller = new AbortController();
@@ -101,7 +108,7 @@ try {
     const response = screenshotPath ? await saveScreenshot(result, screenshotPath) : { ok: true, result };
     process.stdout.write(`${JSON.stringify(response)}\n`);
     if (!response.ok) process.exitCode = 1;
-    if (!rpc && request.command === 'doctor' && result?.desktop?.ok !== true) process.exitCode = 1;
+    if (!rpc && request.command === 'doctor' && (result?.desktop?.ok !== true || result?.build?.ok !== true)) process.exitCode = 1;
   }
 } catch (error) {
   process.stdout.write(`${JSON.stringify({ ok: false, error: { code: error.code ?? 'windows_use_error', message: error.message },

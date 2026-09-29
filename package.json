@@ -7,7 +7,7 @@
   "license": "MIT",
   "engines": { "node": ">=22" },
   "bin": { "windows-use": "bin/windows-use.mjs" },
-  "files": ["bin", "src", "dist", "native", "skills", "docs/windows-client-verification.md", "LICENSE", "NOTICE.md", "README.md", "provenance.json"],
+  "files": ["bin", "src", "dist", "native", "skills", "build-manifest.json", "docs/windows-client-verification.md", "LICENSE", "NOTICE.md", "README.md", "provenance.json"],
   "scripts": {
     "pretest": "npm run build",
     "test": "node --test test/*.test.mjs",

@@ -182,7 +182,7 @@ for (const result of [null, undefined, false, 42, 'unexpected response']) {
   });
 }
 
-test('doctor with a null result and requested screenshot emits one capture failure', async t => {
+test('doctor with a null broker result preserves build diagnostics with its capture failure', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'wu-shot-'));
   const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\windows-use-${randomUUID()}` : join(directory, 'desktop.sock');
   const token = randomUUID();
@@ -198,7 +198,12 @@ test('doctor with a null result and requested screenshot emits one capture failu
   const { code, response } = await run(directory, path, 'doctor');
   assert.equal(code, 1);
   assert.equal(response.ok, false);
-  assert.equal(response.result, null);
+  assert.equal(response.result.desktop.ok, false);
+  assert.equal(response.result.desktop.code, 'invalid_response');
+  assert.equal(response.result.identities.caller.integrity, 'verified');
+  assert.equal(response.result.identities.installation.integrity, 'verified');
+  assert.equal(response.result.identities.server, null);
+  assert.equal(response.result.build.ok, false);
   assert.equal(response.error.code, 'screenshot_missing');
   assert.deepEqual(response.screenshotOutput, { status: 'failed', stage: 'capture', path });
   assert.equal(calls, 1);
