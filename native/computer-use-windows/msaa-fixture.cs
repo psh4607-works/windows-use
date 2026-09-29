@@ -27,10 +27,12 @@ public class MsaaFixture : Accessibility.IAccessible {
     public int State, Invocations, ValueReads, LastChild = -1;
     public int Error = unchecked((int)0x80020003);
     public string ErrorMessage = "fixture provider failure";
-    public bool MapNotImplemented;
-    public int ChildrenError, ReturnedChildren = -1;
+    public bool MapNotImplemented, MapHResult, UnexpectedFailure;
+    public int ChildrenError, ChildrenStatus, ReturnedChildren = -1;
     public object[] Children = new object[0];
-    private void Check(string property) {
+    protected void Check(string property) {
+        if (Unsupported == property && UnexpectedFailure) throw new System.InvalidOperationException(ErrorMessage);
+        if (Unsupported == property && MapHResult) System.Runtime.InteropServices.Marshal.ThrowExceptionForHR(Error);
         if (Unsupported == property && MapNotImplemented && Error == unchecked((int)0x80004001))
             throw new System.NotImplementedException(ErrorMessage);
         if (Unsupported == property) throw new System.Runtime.InteropServices.COMException(ErrorMessage, Error);
@@ -55,6 +57,7 @@ public sealed class IdentifiedMsaaFixture : MsaaFixture, Accessibility.IAccIdent
     public int ObjectId;
     public bool IdentityUnavailable;
     public void GetIdentityString(uint child, System.IntPtr pointer, out uint length) {
+        Check("identity");
         if (IdentityUnavailable) throw new System.Runtime.InteropServices.COMException("identity", unchecked((int)0x80004001));
         byte[] bytes = new byte[8];
         System.Array.Copy(System.BitConverter.GetBytes(ObjectId), 0, bytes, 0, 4);
@@ -78,6 +81,6 @@ public static class MsaaFixtureNative {
         if (fixture.ChildrenError != 0) { obtained = 0; return fixture.ChildrenError; }
         if (fixture.ReturnedChildren >= 0) obtained = System.Math.Min(obtained, fixture.ReturnedChildren);
         System.Array.Copy(source, start, children, 0, obtained);
-        return 0;
+        return fixture.ChildrenStatus;
     }
 }

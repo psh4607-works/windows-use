@@ -283,6 +283,12 @@ windows-use wait-for --app <pid> --session await-change --name Editor --conditio
 이 진단에 포함하지 않습니다. 선택적 속성 미지원은 조회 누락으로 세지 않습니다.
 불완전한 관찰은 선택자를 좁히는 것만으로 해결되지 않을 수 있으므로 원인을 확인한 뒤 다시 관찰하세요.
 
+MSAA가 `accChildCount`로 알려 준 개수보다 적은 자식을 반환하면 `S_FALSE`여도
+보수적으로 불완전한 관찰로 처리합니다. `S_FALSE` 자체는 COM 실패가 아니지만,
+현재 관찰만으로는 자식 수의 과대 보고와 열거 중 변경·누락을 구분할 수 없기 때문입니다.
+따라서 자식 수를 지속해서 과대 보고하는 앱의 query/wait는 불완전한 결과로 종료할 수 있습니다.
+API의 반환 규약은 [AccessibleChildren 문서](https://learn.microsoft.com/en-us/windows/win32/api/oleacc/nf-oleacc-accessiblechildren)를 참고하세요.
+
 `role`은 UIA의 `ControlType.Edit` 같은 programmatic name, MSAA의 `MSAA.42` 같은
 네이티브 역할입니다. MSAA 사용자 정의 역할은 `MSAA.custom.<role>`입니다. 번역된 표시 역할은
 `roleLabel`이며 선택자로 사용하지 않습니다. MSAA는 AutomationId를 제공하지 않아
@@ -300,6 +306,9 @@ windows-use wait-for --app <pid> --session await-change --name Editor --conditio
 처음 선택한 HWND를 고정하며 닫히면 다른 창으로 옮겨가지 않습니다. 조건 충족 시 최신
 관찰 토큰을 반환하고, 복수 후보·불완전한 트리·pause/재개·서버 재시작은 오류로 종료합니다.
 모든 조건에서 불완전한 snapshot은 `incomplete_observation`으로 종료하고 입력을 실행하지 않습니다.
+`window` 조건도 성공 시 후속 액션에 사용할 관찰을 반환하므로 이 제한을 적용합니다.
+창이 존재해도 노드·깊이 제한에 걸린 큰 창은 실패할 수 있으며, 창의 존재만 확인하려면
+`windows` 명령으로 조회하세요. 이 경우 오류 메시지는 창 발견과 관찰의 불완전함을 구분합니다.
 호출 측과 Windows 서버를 함께 업데이트해야 합니다. 이전 서버의 읽기 응답에 접근 세대값이 없으면
 `unsupported_wait`로 실패합니다.
 

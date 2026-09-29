@@ -81,9 +81,21 @@ test('wait fails on incomplete real provider queries for element, value and chan
 });
 
 test('window waits reject partial snapshots and expose no successful observation', async () => {
-  const { provider } = fixture({ errors: [{ code: 'uia_children_unavailable', count: 1 }] });
-  await assert.rejects(waitFor({ session: 'wait', params: { app: 'fixture', condition: 'window' } }, {
-    read: async request => ({ ...(request.command === 'windows' ? { windows: [{ id: 123 }] }
-      : await provider.snapshot({ app: 'fixture', windowId: 123 })), accessEpoch: 'owner:0' })
-  }), error => error.code === 'incomplete_observation' && /uia_children_unavailable/.test(error.message));
+  for (const [options, reason] of [
+    [{ errors: [{ code: 'uia_children_unavailable', count: 1 }] }, 'uia_children_unavailable'],
+    [{ truncation: { truncated: true } }, 'tree_truncated'],
+    [{ truncation: { truncated: true, maxDepthReached: true } }, 'max_depth_reached']
+  ]) {
+    const { provider } = fixture(options);
+    await assert.rejects(waitFor({ session: 'wait', params: { app: 'fixture', condition: 'window' } }, {
+      read: async request => ({ ...(request.command === 'windows' ? { windows: [{ id: 123 }] }
+        : await provider.snapshot({ app: 'fixture', windowId: 123 })), accessEpoch: 'owner:0' })
+    }), error => {
+      assert.equal(error.code, 'incomplete_observation');
+      assert.match(error.message, /The window was found/);
+      assert.doesNotMatch(error.message, /uniqueness/);
+      assert.ok(error.message.includes(reason));
+      return true;
+    });
+  }
 });

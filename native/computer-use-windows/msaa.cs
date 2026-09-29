@@ -87,6 +87,13 @@ public static class OrcaMsaa {
         }
     }
 
+    private static bool IsProviderReadFailure(Exception error) {
+        // COM interop maps common provider HRESULTs to these managed types.
+        // Preserve unrelated failures instead of disguising them as omissions.
+        return error is COMException || error is NotImplementedException ||
+            error is ArgumentException || error is InvalidCastException;
+    }
+
     private static int[] Identity(IAccessible accessible, int child, IntPtr window) {
         // COM pointers and sibling ordinals cannot identify an object across CLI processes.
         // Keep IAccIdentity's opaque bytes intact, including the requested native child ID.
@@ -108,7 +115,10 @@ public static class OrcaMsaa {
             identity[2] = (int)(window.ToInt64() >> 32);
             for (int i = 0; i < bytes.Length; i++) identity[i + 3] = bytes[i];
             return identity;
-        } catch (COMException) { return null; }
+        } catch (Exception error) {
+            if (!IsProviderReadFailure(error)) throw;
+            return null;
+        }
         finally {
             Marshal.FreeCoTaskMem(Marshal.ReadIntPtr(slot));
             Marshal.FreeCoTaskMem(slot);
@@ -194,7 +204,10 @@ public static class OrcaMsaa {
                 else if (children[i] is IAccessible) Visit((IAccessible)children[i], 0, depth + 1, window, left, top, maxNodes, maxDepth, textLimit, nodes, result);
                 else RecordOmission(result, "msaa_node_unavailable", 1);
             }
-        } catch (COMException) { RecordOmission(result, recorded ? "msaa_children_unavailable" : "msaa_node_unavailable", 1); }
+        } catch (Exception error) {
+            if (!IsProviderReadFailure(error)) throw;
+            RecordOmission(result, recorded ? "msaa_children_unavailable" : "msaa_node_unavailable", 1);
+        }
     }
 
     public static OrcaMsaaNode Resolve(OrcaMsaaTree tree, int[] identity, string name, string controlType) {

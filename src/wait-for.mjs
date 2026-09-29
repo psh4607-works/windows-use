@@ -91,7 +91,10 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
         const reasons = incompleteReasons(result.snapshot);
         if (reasons.length || (condition !== 'window' && !result.query.complete)) {
           const summary = reasons.map(reason => `${reason.code} (${reason.count})`).join(', ');
-          throw queryError('incomplete_observation', `The accessibility tree is incomplete; uniqueness cannot be established.${summary ? ` Reasons: ${summary}.` : ''}`);
+          const message = condition === 'window'
+            ? 'The window was found, but its accessibility observation is incomplete; no successful observation is returned.'
+            : 'The accessibility tree is incomplete; uniqueness cannot be established.';
+          throw queryError('incomplete_observation', `${message}${summary ? ` Reasons: ${summary}.` : ''}`);
         }
         if (condition !== 'window') {
           if (result.query.matchCount > 1) throw queryError('ambiguous_selector', 'Multiple elements match; narrow the selectors.');

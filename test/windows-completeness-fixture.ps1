@@ -36,7 +36,7 @@ using System.Windows.Forms;
 
 public sealed class CompletenessFixtureForm : Form {
     public string Mode = "normal";
-    public int NodeFailures, ChildrenFailures, OptionalFailures;
+    public int NodeFailures, ChildrenFailures, OptionalFailures, LastFailureHResult;
     private readonly Button ready, firstSave, secondSave;
     private readonly Panel faultRegion;
 
@@ -93,28 +93,39 @@ public sealed class CompletenessFixtureAccessible : Control.ControlAccessibleObj
     public override string Description { get { return "Owned accessibility completeness fixture"; } }
     public override string Help { get { return ""; } }
     public override string Value { get { return ""; } set { } }
+    private int FailureHResult() {
+        // The provider returns HRESULTs across the real COM boundary. The
+        // caller's interop layer chooses the corresponding managed exception.
+        if (form.Mode.EndsWith("-notimpl")) return unchecked((int)0x80004001);
+        if (form.Mode.EndsWith("-invalidarg")) return unchecked((int)0x80070057);
+        if (form.Mode.EndsWith("-invalidcast")) return unchecked((int)0x80004002);
+        return unchecked((int)0x80010108);
+    }
     public override string DefaultAction {
         get {
             if (faultRegion && form.Mode == "optional") {
                 form.OptionalFailures++;
-                throw new COMException("Fixture optional metadata is unsupported", unchecked((int)0x80004001));
+                form.LastFailureHResult = unchecked((int)0x80004001);
+                throw new COMException("Fixture optional metadata is unsupported", form.LastFailureHResult);
             }
             return "";
         }
     }
     public override AccessibleStates State {
         get {
-            if (faultRegion && form.Mode == "node") {
+            if (faultRegion && (form.Mode == "node" || form.Mode.StartsWith("node-"))) {
                 form.NodeFailures++;
-                throw new COMException("Fixture node is unavailable", unchecked((int)0x80010108));
+                form.LastFailureHResult = FailureHResult();
+                throw new COMException("Fixture node is unavailable", form.LastFailureHResult);
             }
             return AccessibleStates.None;
         }
     }
     public override int GetChildCount() {
-        if (faultRegion && form.Mode == "children") {
+        if (faultRegion && (form.Mode == "children" || form.Mode.StartsWith("children-"))) {
             form.ChildrenFailures++;
-            throw new COMException("Fixture subtree is unavailable", unchecked((int)0x80010108));
+            form.LastFailureHResult = FailureHResult();
+            throw new COMException("Fixture subtree is unavailable", form.LastFailureHResult);
         }
         return Children.Length;
     }
@@ -138,6 +149,7 @@ function Save-FixtureEvidence {
         title = $Title; mode = $form.Mode; closed = $script:fixtureClosed
         nodeFailures = $form.NodeFailures; childrenFailures = $form.ChildrenFailures
         optionalFailures = $form.OptionalFailures
+        lastFailureHResult = $form.LastFailureHResult
         error = $script:fixtureError
         updatedAtUtc = [DateTime]::UtcNow.ToString('o')
     }
@@ -156,7 +168,9 @@ $timer.Add_Tick({
         try { $requested = [IO.File]::ReadAllText($ModeFile).Trim().ToLowerInvariant() }
         catch [IO.IOException] { return }
         if ($requested -eq '') { return }
-        if ($requested -notin @('normal', 'node', 'children', 'optional', 'stop')) { throw 'Unknown fixture mode.' }
+        if ($requested -notin @('normal', 'node', 'children', 'optional', 'stop',
+            'node-notimpl', 'node-invalidarg', 'node-invalidcast',
+            'children-notimpl', 'children-invalidarg', 'children-invalidcast')) { throw 'Unknown fixture mode.' }
         if ($requested -eq 'stop') {
             $form.Close()
             return

@@ -31,6 +31,55 @@ Assert-ObservationError $tree 'msaa_node_unavailable'
 $broken.Unsupported = ''
 Assert-Test ((Read-Msaa $root).observationErrors.Count -eq 0) 'A complete MSAA tree must have no observation errors'
 
+# Interop translates these HRESULTs into managed exceptions before Visit sees
+# them; exercise both required node/subtree reads and optional native identity.
+$mappedFailures = New-Object System.Collections.Generic.List[string]
+foreach ($errorCase in @(
+    @{ Code = -2147467263; Type = [NotImplementedException] }, # E_NOTIMPL
+    @{ Code = -2147024809; Type = [ArgumentException] },       # E_INVALIDARG
+    @{ Code = -2147467262; Type = [InvalidCastException] }     # E_NOINTERFACE
+)) {
+    $mapped = [Runtime.InteropServices.Marshal]::GetExceptionForHR($errorCase.Code)
+    Assert-Test ($mapped.GetType() -eq $errorCase.Type) 'Fixture HRESULT did not map to the expected managed exception'
+    foreach ($property in @('state', 'role', 'children', 'identity')) {
+        $broken.Unsupported = $property; $broken.Error = $errorCase.Code; $broken.MapHResult = $true
+        $readFailed = $false
+        try { $tree = Read-Msaa $root } catch { $readFailed = $true }
+        if ($readFailed) { $mappedFailures.Add("$($errorCase.Type.Name):$property"); continue }
+        Assert-Test ($tree.elements[-1].runtimeId[3] -eq $healthy.ObjectId) "Mapped $property failure lost the healthy following sibling"
+        if ($property -eq 'identity') {
+            Assert-Test ($tree.elements.Count -eq 3 -and $tree.observationErrors.Count -eq 0) 'Unavailable native identity must keep all nodes visible and complete'
+            Assert-Test ($null -eq $tree.elements[1].runtimeId -and $tree.elements[1].actions.Count -eq 0) 'Unavailable identity must not advertise actions'
+        } else {
+            $code = if ($property -eq 'children') { 'msaa_children_unavailable' } else { 'msaa_node_unavailable' }
+            Assert-ObservationError $tree $code
+            Assert-Test ($tree.elements.Count -eq $(if ($property -eq 'children') { 3 } else { 2 })) 'Mapped required-read failure omitted the wrong records'
+        }
+    }
+    $broken.Unsupported = ''; $broken.ChildrenError = $errorCase.Code
+    $readFailed = $false
+    # Give the failing container a real descendant so AccessibleChildren runs.
+    $broken.Children = @([IdentifiedMsaaFixture]::new())
+    try { $tree = Read-Msaa $root } catch { $readFailed = $true }
+    if ($readFailed) { $mappedFailures.Add("$($errorCase.Type.Name):enumeration") }
+    else {
+        Assert-ObservationError $tree 'msaa_children_unavailable'
+        Assert-Test ($tree.elements.Count -eq 3 -and $tree.elements[-1].runtimeId[3] -eq $healthy.ObjectId) 'Mapped enumeration failure lost the healthy following sibling'
+    }
+    $broken.ChildrenError = 0; $broken.Children = @()
+}
+$broken.Unsupported = ''; $broken.MapHResult = $false
+Assert-Test ($mappedFailures.Count -eq 0) "Mapped MSAA failures escaped traversal: $($mappedFailures -join ', ')"
+
+foreach ($property in @('state', 'children', 'identity')) {
+    $broken.Unsupported = $property; $broken.UnexpectedFailure = $true
+    $readFailed = $false
+    try { $null = Read-Msaa $root } catch { $readFailed = $true }
+    Assert-Test $readFailed "An unrelated $property failure must propagate rather than being hidden as a provider omission"
+}
+$broken.Unsupported = ''; $broken.UnexpectedFailure = $false
+Write-Output 'PASS: mapped COM required-read failures preserve siblings; unavailable identity remains visible; unrelated errors propagate'
+
 foreach ($failure in @('child-count', 'enumeration', 'short-read', 'null-child', 'invalid-child')) {
     $root.Unsupported = ''; $root.ChildrenError = 0; $root.ReturnedChildren = -1; $root.Children = @($broken, $healthy)
     switch ($failure) {
@@ -45,6 +94,12 @@ foreach ($failure in @('child-count', 'enumeration', 'short-read', 'null-child',
     Assert-ObservationError $tree $code
     Assert-Test ($tree.elements.Count -ge 1) "MSAA $failure must retain the root record"
 }
+$root.Unsupported = ''; $root.Children = @($broken, $healthy)
+$root.ChildrenStatus = 1; $root.ReturnedChildren = 1 # S_FALSE with accChildCount > obtained.
+$tree = Read-Msaa $root
+Assert-ObservationError $tree 'msaa_children_unavailable'
+Assert-Test ($tree.elements.Count -eq 2 -and $tree.elements[1].runtimeId[3] -eq $broken.ObjectId) 'S_FALSE short enumeration must preserve the returned child'
+$root.ChildrenStatus = 0; $root.ReturnedChildren = -1
 $root.Unsupported = ''; $root.Children = @($broken, $healthy)
 foreach ($property in @('name', 'value', 'description', 'help', 'defaultAction', 'location')) {
     $root.Role = 42; $root.Unsupported = $property; $root.Error = -2147467263
