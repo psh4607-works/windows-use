@@ -113,3 +113,32 @@ test('explicit false sensitivity markers preserve ordinary literal redaction tex
     assert.equal(found.value, '[redacted]');
   }, { elements: [{ index: 1, controlType: 'ControlType.Edit', value: '[redacted]', valueAvailable: true, isSensitive: false }] });
 });
+
+test('query explains native actionability without implying a unique disabled control is actionable', async () => {
+  await fixture(async ({ query }) => {
+    const result = await query({ name: 'Connect' });
+    const match = result.query.matches[0];
+    assert.equal(result.query.unique, true);
+    assert.deepEqual(match.actions, ['Invoke', 'Focus']);
+    assert.equal(match.isEnabled, false);
+    assert.equal(match.isKeyboardFocusable, true);
+    assert.equal(match.hasKeyboardFocus, false);
+    assert.equal(match.expansionState, 'collapsed');
+    assert.equal(match.isSelected, true);
+    assert.deepEqual(match.actionabilityReasons, ['disabled']);
+  }, { elements: [{ index: 1, controlType: 'ControlType.Button', name: 'Connect', actions: ['Invoke', 'Focus'], isEnabled: false, isKeyboardFocusable: true, hasKeyboardFocus: false, isSelected: true, expansionState: 'Collapsed' }] });
+});
+
+test('query normalizes expansion state across accessibility backends and leaves unknown state null', async () => {
+  const states = ['Collapsed', 'Expanded', 'PartiallyExpanded', 'LeafNode',
+    'collapsed', 'expanded', 'partially_expanded', 'leaf_node', undefined, null, 'Unknown', 1];
+  const expected = ['collapsed', 'expanded', 'partially_expanded', 'leaf_node',
+    'collapsed', 'expanded', 'partially_expanded', 'leaf_node', null, null, null, null];
+  for (const accessibility of ['uia', 'msaa']) {
+    const role = accessibility === 'uia' ? 'ControlType.TreeItem' : 'MSAA.36';
+    await fixture(async ({ query }) => {
+      const result = await query({ role, accessibility });
+      assert.deepEqual(result.query.matches.map(match => match.expansionState), expected);
+    }, { elements: states.map((expansionState, index) => ({ index, controlType: role, expansionState })) });
+  }
+});

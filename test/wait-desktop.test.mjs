@@ -107,3 +107,117 @@ test('a supported server reports mid-wait app disappearance as window_closed thr
     assert.equal(windowReads, 2); assert.equal(queryReads, 1);
   } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('desktop inventory baselines survive input and reject foreign sessions and resumed desktop epochs', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-'));
+  let windows = [{ id: 1, app: { pid: 42 }, processInstance: 'start' }];
+  const desktop = await startDesktop({ directory, handler: async request => request.command === 'windows' ? { windows, complete: true, observationErrors: [] } : {} });
+  const read = request => requestDesktop(request, { directory });
+  try {
+    const baseline = await read({ command: 'windows', session: 'task', params: { all: true } });
+    assert.equal(typeof baseline.inventory?.token, 'string');
+    await read({ command: 'invoke', session: 'task', params: { app: 'fixture' } });
+    windows = [...windows, { id: 2, app: { pid: 43 }, processInstance: 'new' }];
+    const req = { command: 'windows', session: 'task', params: { all: true, afterInventory: baseline.inventory.token } };
+    assert.deepEqual((await read(req)).windows.map(window => window.id), [2]);
+    await assert.rejects(read({ ...req, session: 'other' }), error => error.code === 'invalid_inventory');
+    await desktop.setPaused(true); await desktop.setPaused(false);
+    await assert.rejects(read(req), error => error.code === 'invalid_inventory');
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('desktop inventory refuses incomplete baseline and later incomplete discovery', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-incomplete-'));
+  let result = { windows: [], complete: false, observationErrors: [{ kind: 'enumeration' }] };
+  const desktop = await startDesktop({ directory, handler: async () => result });
+  const req = { command: 'windows', session: 'task', params: { all: true } };
+  const read = request => requestDesktop(request, { directory });
+  try {
+    await assert.rejects(read(req), error => error.code === 'incomplete_observation');
+    result = { windows: [], complete: true, observationErrors: [] };
+    const baseline = await read(req);
+    result = { windows: [], complete: false, observationErrors: [] };
+    await assert.rejects(read({ ...req, params: { all: true, afterInventory: baseline.inventory.token } }), error => error.code === 'incomplete_observation');
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('inventory wait ignores unavailable process identities and their later recovery while finding a valid destination', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-unavailable-'));
+  const prior = { id: 1, title: 'Destination', app: { pid: 42 }, processInstance: 'first' };
+  const protectedWindow = { id: 2, title: 'Destination', app: { pid: 43 }, processInstance: null };
+  const unknownDuringPoll = { id: 3, title: 'Destination', app: { pid: 44 }, processInstance: null };
+  const destination = { id: 4, title: 'Destination', app: { pid: 45 }, processInstance: 'fourth' };
+  let windows = [prior, protectedWindow], snapshots = 0;
+  const desktop = await startDesktop({ directory, handler: async request => {
+    if (request.command === 'windows') return { windows, complete: true, observationErrors: [] };
+    assert.equal(request.command, 'snapshot');
+    assert.equal(request.params.app, '45');
+    assert.equal(request.params.windowId, 4);
+    snapshots++;
+    return { snapshot: { app: destination.app, window: { id: 4, title: 'Destination' }, processInstance: 'fourth' } };
+  } });
+  const read = (request, options) => requestDesktop(request, { ...options, directory });
+  try {
+    const baseline = await read({ command: 'windows', session: 'task', params: { all: true } });
+    assert.equal(typeof baseline.inventory.token, 'string');
+    windows = [{ ...prior, processInstance: null }, protectedWindow, unknownDuringPoll];
+    const found = await waitFor({ command: 'wait-for', session: 'task', params: {
+      condition: 'window', afterInventory: baseline.inventory.token, windowTitle: 'Destination'
+    } }, { read, sleep: async () => {
+      windows = [{ ...prior, processInstance: 'restarted' }, { ...protectedWindow, processInstance: 'second' },
+        { ...unknownDuringPoll, processInstance: 'third' }, destination];
+    } });
+    assert.equal(found.snapshot.window.id, 4);
+    assert.equal(found.wait.polls, 2);
+    assert.equal(snapshots, 1);
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('inventory wait crosses process boundary through real broker without adopting old or unrelated windows', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-transition-'));
+  const old = { id: 1, title: 'Destination', app: { pid: 42, name: 'Original' }, processInstance: 'first' };
+  const destination = { id: 3, title: 'Destination', app: { pid: 44, name: 'Target' }, processInstance: 'third' };
+  let windows = [old];
+  const inputs = [];
+  const desktop = await startDesktop({ directory, handler: async request => {
+    if (request.command === 'windows') return { windows, complete: true, observationErrors: [] };
+    if (request.command === 'invoke') { inputs.push(request); windows = [old, { ...old, id: 2, title: 'Unrelated', app: { pid: 43 }, processInstance: 'second' }, destination]; return {}; }
+    assert.equal(request.command, 'snapshot');
+    assert.equal(request.params.app, '44');
+    assert.equal(request.params.windowId, 3);
+    return { snapshot: { app: { pid: 44 }, window: { id: 3, title: 'Destination' }, processInstance: 'third' }, session: { id: 'task', observation: 'destination-token' } };
+  } });
+  const read = (request, options) => requestDesktop(request, { ...options, directory });
+  try {
+    const baseline = await read({ command: 'windows', session: 'task', params: { all: true } });
+    await read({ command: 'invoke', session: 'task', params: { app: 'pid:42' } });
+    const result = await waitFor({ command: 'wait-for', session: 'task', params: { condition: 'window', afterInventory: baseline.inventory.token, windowTitle: 'Destination' } }, { read });
+    assert.equal(result.snapshot.app.pid, 44);
+    assert.equal(result.session.observation, 'destination-token');
+    assert.equal(inputs.length, 1);
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('discovered window token can act immediately using the returned numeric PID', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-action-'));
+  const stateDir = join(directory, 'state');
+  let windows = [], actions = 0;
+  const { executeRequest } = await import('../src/request.mjs');
+  const providerFactory = () => ({ snapshots: new Map(),
+    async listWindows() { return { windows, complete: true, observationErrors: [] }; },
+    async snapshot(params) {
+      this.snapshots.set(params.app, { windowId: 3, app: { pid: 44 }, processInstance: 'started', elements: [] });
+      return { snapshot: { app: { pid: 44 }, window: { id: 3, title: 'Destination' }, processInstance: 'started' } };
+    },
+    async action() { actions++; return { snapshot: null, action: { verification: { state: 'unverified' } } }; }, shutdown() {} });
+  const desktop = await startDesktop({ directory, handler: request => executeRequest(request, { stateDir, providerFactory }) });
+  const read = (request, options) => requestDesktop(request, { ...options, directory });
+  try {
+    const baseline = await read({ command: 'windows', session: 'task', params: { all: true } });
+    windows = [{ id: 3, title: 'Destination', app: { pid: 44 }, processInstance: 'started' }];
+    const found = await waitFor({ command: 'wait-for', session: 'task', params: { condition: 'window', afterInventory: baseline.inventory.token, windowTitle: 'Destination' } }, { read });
+    await read({ command: 'press-key', session: 'task', observation: found.session.observation,
+      params: { app: String(found.snapshot.app.pid), windowId: found.snapshot.window.id, key: 'Enter' } });
+    assert.equal(actions, 1);
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});

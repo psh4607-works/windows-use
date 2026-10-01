@@ -212,3 +212,18 @@ $script:sensitivityReads = 0
 $null = Get-OrcaValueText $uia
 Assert-Test ($script:sensitivityReads -eq 1) 'Standalone value reads must still classify when no flag is supplied'
 Write-Output 'PASS: UIA record/value share one classification; standalone callers remain protected'
+$treeItem = [IdentifiedMsaaFixture]::new(); $treeItem.ObjectId=80; $treeItem.Role=36; $treeItem.State=0x100400
+$node=(Read-Fixture $treeItem).elements[0]
+Assert-Test ($node.actions -contains 'Focus') 'MSAA focusable nodes must advertise Focus'
+Assert-Test ($node.expansionState -eq 'collapsed') 'MSAA must expose collapsed state'
+[OrcaMsaa]::Act($node,'focus',$null)
+Assert-Test ($treeItem.LastChild -eq 0) 'MSAA Focus must call accSelect on the target child'
+$treeItem.State=0x100401
+$node=(Read-Fixture $treeItem).elements[0]
+Assert-Test ($node.actionabilityReason -eq 'disabled' -and $node.actions.Count -eq 0) 'MSAA disabled nodes must explain unavailable actions'
+Write-Output 'PASS: MSAA focus and actionability state'
+$treeItem.State=0x100004
+$node=(Read-Fixture $treeItem).elements[0]
+$treeItem.State=0x100000
+Assert-Test (-not [OrcaMsaa]::IsFocused($node)) 'MSAA keyboard guard must read live focus after traversal'
+Write-Output 'PASS: live MSAA focus state'

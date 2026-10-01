@@ -7,6 +7,7 @@ import { COMMANDS, executeRequest } from './request.mjs';
 import { lockObservations } from './observation-revision.mjs';
 import { acquireRecoveryLock } from './recovery-lock.mjs';
 import { readBuildIdentity, sameBuild } from './build-identity.mjs';
+import { createWindowInventory } from './window-inventory.mjs';
 import { assertCompatible } from './identity-protocol.mjs';
 
 const defaultDirectory = () => process.env.WINDOWS_USE_HOME || join(homedir(), '.windows-use');
@@ -54,6 +55,7 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
   }
   let broker, activeRequests = 0, revision = 0;
   const accessInstance = randomUUID();
+  const inventories = createWindowInventory();
   const idleWaiters = new Set();
   const stateDir = join(directory, 'state');
   const clearObservations = async () => {
@@ -117,6 +119,18 @@ export async function startDesktop({ directory = defaultDirectory(), handler, pa
         // Preserve the wait's epoch even before the target app appears.
         if (!tracked || request.command !== 'windows' || error.code !== 'app_not_found') throw error;
         result = { windows: [] };
+      }
+      if (request.command === 'windows' && request.params?.all === true) {
+        if (result.complete !== true || !Array.isArray(result.observationErrors) || result.observationErrors.length) {
+          throw Object.assign(new Error('Desktop window inventory is incomplete; no baseline or destination can be established.'), { code: 'incomplete_observation' });
+        }
+        if (paused || admitted !== revision) rejectPaused();
+        if (request.params.afterInventory !== undefined) {
+          result = { ...result, windows: inventories.after(request.params.afterInventory, request.session, status().accessEpoch, result.windows) };
+        } else {
+          result = { ...result, inventory: inventories.capture(request.session, status().accessEpoch, result.windows) };
+        }
+        result.accessEpoch = status().accessEpoch;
       }
       if (!tracked) return result;
       // A pause may have begun while the native read was in flight. Never stamp

@@ -1,5 +1,12 @@
 import { incompleteReasons, observationErrors } from './observation-completeness.mjs';
 
+const expansionStates = new Map([
+  ['Collapsed', 'collapsed'], ['Expanded', 'expanded'],
+  ['PartiallyExpanded', 'partially_expanded'], ['LeafNode', 'leaf_node'],
+  ['collapsed', 'collapsed'], ['expanded', 'expanded'],
+  ['partially_expanded', 'partially_expanded'], ['leaf_node', 'leaf_node']
+]);
+
 export function queryError(code, message) {
   return Object.assign(new Error(message), { code });
 }
@@ -7,7 +14,7 @@ export function queryError(code, message) {
 export function validateQuery(params, { allowEmpty = false, wait = false } = {}) {
   const fields = ['role', 'name', 'automationId'];
   const allowed = new Set(['app', 'windowId', 'accessibility', 'noScreenshot', 'restoreWindow', ...fields,
-    ...(wait ? ['condition', 'windowTitle', 'timeoutMs', 'pollMs', 'value'] : [])]);
+    ...(wait ? ['condition', 'windowTitle', 'timeoutMs', 'pollMs', 'value', 'afterInventory'] : [])]);
   if ((!allowEmpty && !fields.some(key => params[key] !== undefined)) ||
       Object.keys(params).some(key => params[key] !== undefined && !allowed.has(key)) ||
       fields.some(key => params[key] !== undefined && (typeof params[key] !== 'string' || !params[key].length)) ||
@@ -40,7 +47,18 @@ export async function observeQuery(provider, params) {
       roleLabel: element.localizedControlType ?? null, name: sensitive ? '[redacted]' : element.name ?? null,
       automationId: sensitive || params.accessibility === 'msaa' ? null : element.automationId || null,
       value: sensitive || element.valueAvailable !== true ? null : element.value ?? null,
-      valueTruncated: element.valueTruncated === true, sensitive, identity: element.runtimeId ?? null };
+      valueTruncated: element.valueTruncated === true, sensitive, identity: element.runtimeId ?? null,
+      actions: Array.isArray(element.actions) ? element.actions : [],
+      isEnabled: typeof element.isEnabled === 'boolean' ? element.isEnabled : null,
+      isKeyboardFocusable: typeof element.isKeyboardFocusable === 'boolean' ? element.isKeyboardFocusable : null,
+      hasKeyboardFocus: typeof element.hasKeyboardFocus === 'boolean' ? element.hasKeyboardFocus : null,
+      expansionState: expansionStates.get(element.expansionState) ?? null,
+      isSelected: typeof element.isSelected === 'boolean' ? element.isSelected : null,
+      actionabilityReasons: [...new Set([
+        ...(element.isEnabled === false ? ['disabled'] : []),
+        ...(!element.actions?.length ? ['no_accessible_action'] : []),
+        ...(element.actionabilityReason ? [element.actionabilityReason] : [])
+      ])] };
   }).filter(element =>
     (params.role === undefined || element.role === params.role) &&
     (params.name === undefined || element.name === params.name) &&

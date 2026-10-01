@@ -29,6 +29,7 @@ export function renderSnapshot(
     snapshot: {
       // Why: bridge elements can be large; keep them cached internally for actions
       // instead of returning duplicated metadata in every agent-facing snapshot.
+      processInstance: snapshot.processInstance ?? null,
       id: snapshot.snapshotId ?? fallbackSnapshotId(snapshot),
       app: {
         name: snapshot.app.name,

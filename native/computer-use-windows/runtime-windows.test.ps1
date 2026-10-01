@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime.ps1'), [ref]$null, [ref]$null)
-$names = @('Get-OrcaWindowId', 'Assert-OrcaWindowTarget', 'Select-OrcaWindowTarget', 'Assert-OrcaProcessAllowed')
+$names = @('Get-OrcaProcessInstance', 'Get-OrcaWindowId', 'Assert-OrcaWindowTarget', 'Select-OrcaWindowTarget', 'Assert-OrcaProcessAllowed')
 foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($definition.Name -in $names) { Invoke-Expression $definition.Extent.Text }
 }

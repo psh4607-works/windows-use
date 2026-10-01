@@ -83,3 +83,46 @@ test('indexed actions without an observed HWND are rejected before dispatch', as
     provider.shutdown();
   }
 });
+
+test('desktop-wide windows retain native identity and relationship metadata', async () => {
+  const provider = new DesktopScriptProviderClient('windows', 'fixture.ps1', null);
+  const window = { id: 12, index: 0, title: 'Destination', app: { name: 'other', pid: 43 }, processInstance: 'start', className: 'Dialog', ownerWindowId: 10, rootOwnerWindowId: 10, isForeground: true };
+  provider.callBridge = async request => {
+    if (request.tool === 'handshake') return { ok: true, capabilities: { supports: { windows: { list: true } } } };
+    assert.equal(request.all, true);
+    assert.equal(request.app, undefined);
+    return { ok: true, windows: [window] };
+  };
+  const result = await provider.listWindows({ all: true });
+  for (const field of ['processInstance', 'className', 'ownerWindowId', 'rootOwnerWindowId', 'isForeground']) assert.equal(result.windows[0][field], window[field]);
+});
+
+test('input binds to observed process instance and preserves outcome when source closes', async () => {
+  const provider = new DesktopScriptProviderClient('windows', 'fixture.ps1', null);
+  provider.callBridge = async request => {
+    if (request.tool === 'handshake') return { ok: true, capabilities: { supports: { actions: { performAction: true } } } };
+    if (request.tool === 'get_app_state') return { ok: true, snapshot: { snapshotId: 'initial', app: { name: 'fixture', pid: 42 }, processInstance: 'start-a', windowTitle: 'Fixture', windowClassName: 'TestWindow', windowId: 12, elements: [{ index: 1, runtimeId: [1], actions: ['Invoke'] }], treeLines: [] } };
+    assert.equal(request.expectedProcessInstance, 'start-a');
+    assert.equal(request.expectedWindowTitle, 'Fixture');
+    assert.equal(request.expectedWindowClassName, 'TestWindow');
+    assert.equal(request.app, 'pid:42');
+    return { ok: true, snapshot: null, action: { path: 'accessibility', actionName: 'Invoke', verification: { state: 'unverified', reason: 'window_changed' } } };
+  };
+  const first = await provider.snapshot({ app: 'fixture', windowId: 12 });
+  assert.equal(first.snapshot.processInstance, 'start-a');
+  const result = await provider.action('performSecondaryAction', { app: 'fixture', windowId: 12, elementIndex: 1, action: 'Invoke' });
+  assert.equal(result.snapshot, null);
+  assert.equal(result.action.verification.reason, 'window_changed');
+  assert.equal(provider.snapshots.size, 0);
+});
+
+test('native pointer authorization is forwarded with the observed target', async () => {
+  const provider = new DesktopScriptProviderClient('windows', 'fixture.ps1', null);
+  provider.callBridge = async request => {
+    if (request.tool === 'handshake') return { ok: true, capabilities: { supports: { actions: { click: true } } } };
+    if (request.tool === 'click') assert.equal(request.allowPointer, true);
+    return { ok: true, snapshot: { snapshotId: 'initial', app: { name: 'fixture', pid: 42 }, processInstance: 'start', windowId: 12, elements: [], treeLines: [] } };
+  };
+  await provider.snapshot({ app: 'fixture', windowId: 12 });
+  await provider.action('click', { app: 'fixture', windowId: 12, x: 10, y: 10, allowPointer: true });
+});

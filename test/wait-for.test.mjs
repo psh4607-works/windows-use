@@ -188,3 +188,41 @@ test('an unsupported windows read after a stamped poll keeps the same upgrade gu
   await assert.rejects(waitFor(request(), deps), error => error.code === 'unsupported_wait' && /Update the desktop server/.test(error.message));
   assert.equal(windows, 2);
 });
+
+test('new-window wait discovers cross-process exact destination and observes concrete PID', async () => {
+  const calls = [];
+  const result = await waitFor({ command: 'wait-for', session: 'wait', params: { condition: 'window', afterInventory: 'baseline', windowTitle: 'Destination', app: 'Target.exe' } }, {
+    read: async req => {
+      calls.push(req);
+      if (req.command === 'windows') {
+        assert.equal(req.params.all, true);
+        assert.equal(req.params.afterInventory, 'baseline');
+        return { accessEpoch: 'epoch', windows: [
+          { id: 100, title: 'Unrelated', app: { pid: 5, name: 'Other' }, processInstance: 'old' },
+          { id: 456, title: 'Destination', app: { pid: 42, name: 'Target' }, processInstance: 'started' }
+        ] };
+      }
+      assert.equal(req.params.app, '42');
+      return { accessEpoch: 'epoch', session: { observation: 'fresh' }, snapshot: { window: { id: 456, title: 'Destination' }, app: { pid: 42 }, processInstance: 'started' } };
+    }
+  });
+  assert.equal(result.snapshot.app.pid, 42);
+  assert.equal(result.session.observation, 'fresh');
+  assert.equal(calls.length, 2);
+});
+
+test('new-window wait requires exact destination criteria and refuses instance replacement', async () => {
+  const request = { command: 'wait-for', session: 'wait', params: { condition: 'window', afterInventory: 'baseline' } };
+  await assert.rejects(waitFor(request, { read: () => assert.fail('must not read') }), error => error.code === 'invalid_wait');
+  await assert.rejects(waitFor({ ...request, params: { ...request.params, windowTitle: 'Destination' } }, {
+    read: async req => req.command === 'windows' ? { accessEpoch: 'epoch', windows: [{ id: 456, title: 'Destination', app: { pid: 42 }, processInstance: 'first' }] } :
+      { accessEpoch: 'epoch', snapshot: { window: { id: 456 }, app: { pid: 42 }, processInstance: 'replacement' } }
+  }), error => error.code === 'window_changed');
+});
+
+test('new-window wait rejects title changed between enumeration and snapshot', async () => {
+  await assert.rejects(waitFor({ command: 'wait-for', session: 'wait', params: { condition: 'window', afterInventory: 'baseline', windowTitle: 'Expected' } }, {
+    read: async req => req.command === 'windows' ? { accessEpoch: 'epoch', windows: [{ id: 456, title: 'Expected', app: { pid: 42 }, processInstance: 'start' }] } :
+      { accessEpoch: 'epoch', snapshot: { window: { id: 456, title: 'Different target' }, app: { pid: 42 }, processInstance: 'start' } }
+  }), error => error.code === 'window_changed');
+});

@@ -7,6 +7,7 @@ import { incompleteReasons } from './observation-completeness.mjs';
 export async function waitFor(request, { read, now = () => performance.now(), sleep = delay, signal } = {}) {
   const params = { ...request.params };
   const condition = params.condition ?? 'element';
+  const discovering = params.afterInventory !== undefined;
   validateQuery(params, { allowEmpty: condition === 'window', wait: true });
   const started = now();
   const timeoutMs = params.timeoutMs ?? 10000, pollMs = params.pollMs ?? 250;
@@ -17,7 +18,9 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
       (params.windowTitle !== undefined && (typeof params.windowTitle !== 'string' || !params.windowTitle.length)) ||
       (condition === 'value' ? typeof params.value !== 'string' : params.value !== undefined) ||
       (params.accessibility !== undefined && !['uia', 'msaa'].includes(params.accessibility)) ||
-      typeof params.app !== 'string' || !params.app.trim() ||
+      (discovering && (condition !== 'window' || typeof params.afterInventory !== 'string' || !params.afterInventory ||
+        typeof params.windowTitle !== 'string' || !params.windowTitle.length)) ||
+      ((!discovering || params.app !== undefined) && (typeof params.app !== 'string' || !params.app.trim())) ||
       !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(request.session ?? '')) {
     throw queryError('invalid_wait', 'Use a valid app/session, condition, timeout (1-600000 ms), poll interval (50-10000 ms), and a value only for the value condition.');
   }
@@ -71,22 +74,38 @@ export async function waitFor(request, { read, now = () => performance.now(), sl
     accessEpoch ??= result.accessEpoch;
     return result;
   };
-  let windowId = params.windowId, pinned = false, polls = 0, baseline;
+  let windowId = params.windowId, pinned = false, polls = 0, baseline, destination;
   try {
     while (true) {
       check(); polls++;
-      const { windows } = await observe({ command: 'windows', params: { app: params.app } });
+      const { windows } = await observe({ command: 'windows', session: request.session,
+        params: discovering ? { all: true, afterInventory: params.afterInventory } : { app: params.app } });
       const candidates = windows.filter(window => (windowId === undefined || window.id === windowId) &&
-        (pinned || params.windowTitle === undefined || window.title === params.windowTitle));
+        (pinned || params.windowTitle === undefined || window.title === params.windowTitle) &&
+        (!discovering || params.app === undefined || (params.app.replace(/^pid:/i, '') === String(window.app?.pid) ||
+          params.app.replace(/\.exe$/i, '').toLowerCase() === String(window.app?.name ?? '').toLowerCase())));
       if (pinned && !candidates.length) throw queryError('window_closed', 'The pinned window closed; start a new wait for another window.');
       if (candidates.length > 1) throw queryError('ambiguous_window', 'Multiple windows match; specify a window ID or exact title.');
       if (candidates.length === 1) {
         windowId = candidates[0].id; pinned = true;
+        if (discovering) {
+          const candidate = candidates[0];
+          if (!Number.isSafeInteger(candidate.app?.pid) || candidate.app.pid <= 0 || typeof candidate.processInstance !== 'string' || !candidate.processInstance) {
+            throw queryError('invalid_observation', 'A destination PID and process instance are required.');
+          }
+          if (destination && (destination.pid !== candidate.app.pid || destination.processInstance !== candidate.processInstance)) {
+            throw queryError('window_changed', 'The destination process instance changed during the wait.');
+          }
+          destination ??= { pid: candidate.app.pid, processInstance: candidate.processInstance };
+        }
         const result = await observe({ command: condition === 'window' ? 'snapshot' : 'query', session: request.session,
-          params: { app: params.app, accessibility: params.accessibility, role: params.role, name: params.name,
+          params: { app: discovering ? String(destination.pid) : params.app, accessibility: params.accessibility, role: params.role, name: params.name,
             automationId: params.automationId, windowId, noScreenshot: true } });
         if (!Number.isSafeInteger(windowId) || windowId <= 0 || result.snapshot?.window?.id !== windowId) {
           throw queryError('invalid_observation', 'The observation does not belong to the pinned window.');
+        }
+        if (discovering && (result.snapshot?.app?.pid !== destination.pid || result.snapshot?.processInstance !== destination.processInstance || result.snapshot?.window?.title !== params.windowTitle)) {
+          throw queryError('window_changed', 'The destination identity or exact title changed before observation.');
         }
         const reasons = incompleteReasons(result.snapshot);
         if (reasons.length || (condition !== 'window' && !result.query.complete)) {

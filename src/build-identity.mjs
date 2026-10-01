@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 const rootDirectory = fileURLToPath(new URL('../', import.meta.url));
 export const PROTOCOL_REVISION = 1;
-export const CAPABILITIES = Object.freeze({ observationSafety: 1, query: 1, waitAccessEpoch: 1 });
+export const CAPABILITIES = Object.freeze({ observationSafety: 1, query: 1, waitAccessEpoch: 1, directWindowWorkflow: 1 });
 const roots = ['bin', 'src', 'dist', 'native', 'skills'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const validHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);

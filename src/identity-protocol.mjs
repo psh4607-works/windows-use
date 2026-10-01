@@ -6,6 +6,7 @@ const fail = (code, message) => { throw Object.assign(new Error(message), { code
 
 function requiredCapabilities(request) {
   const capabilities = [];
+  if (request.params?.all === true || request.params?.afterInventory !== undefined || actions.has(request.command) || request.params?.restoreWindow === true) capabilities.push('directWindowWorkflow');
   if (request.command === 'query') capabilities.push('query');
   if (request.trackAccess === true) capabilities.push('waitAccessEpoch');
   if (actions.has(request.command) || request.params?.restoreWindow === true) capabilities.push('observationSafety');
