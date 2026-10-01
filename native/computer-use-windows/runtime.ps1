@@ -282,7 +282,15 @@ function Get-OrcaDesktopWindowProcesses([switch]$Strict) {
                 # The owner may have started after the bulk process-table read.
                 $lateOwner = $null
                 try { $lateOwner = Get-Process -Id ([int]$ownerPid) -ErrorAction Stop } catch {}
-                if ($null -ne $lateOwner) { $lateOwner }
+                if ($null -ne $lateOwner) {
+                    $confirmedOwnerPid = [uint32]0
+                    [void][OrcaDesktopWin32]::GetWindowThreadProcessId([IntPtr]$window, [ref]$confirmedOwnerPid)
+                    if ($confirmedOwnerPid -eq 0 -or $confirmedOwnerPid -ne $ownerPid) {
+                        if ($Strict) { throw 'window_inventory_incomplete: window owner changed during process lookup' }
+                        continue
+                    }
+                    $lateOwner
+                }
                 elseif ($Strict) { throw 'window_inventory_incomplete: window process unavailable' }
             }
         }
