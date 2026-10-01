@@ -1,5 +1,12 @@
 import { incompleteReasons, observationErrors } from './observation-completeness.mjs';
 
+const expansionStates = new Map([
+  ['Collapsed', 'collapsed'], ['Expanded', 'expanded'],
+  ['PartiallyExpanded', 'partially_expanded'], ['LeafNode', 'leaf_node'],
+  ['collapsed', 'collapsed'], ['expanded', 'expanded'],
+  ['partially_expanded', 'partially_expanded'], ['leaf_node', 'leaf_node']
+]);
+
 export function queryError(code, message) {
   return Object.assign(new Error(message), { code });
 }
@@ -45,7 +52,7 @@ export async function observeQuery(provider, params) {
       isEnabled: typeof element.isEnabled === 'boolean' ? element.isEnabled : null,
       isKeyboardFocusable: typeof element.isKeyboardFocusable === 'boolean' ? element.isKeyboardFocusable : null,
       hasKeyboardFocus: typeof element.hasKeyboardFocus === 'boolean' ? element.hasKeyboardFocus : null,
-      expansionState: element.expansionState ?? null,
+      expansionState: expansionStates.get(element.expansionState) ?? null,
       isSelected: typeof element.isSelected === 'boolean' ? element.isSelected : null,
       actionabilityReasons: [...new Set([
         ...(element.isEnabled === false ? ['disabled'] : []),

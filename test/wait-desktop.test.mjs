@@ -141,6 +141,38 @@ test('desktop inventory refuses incomplete baseline and later incomplete discove
   } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test('inventory wait ignores unavailable process identities and their later recovery while finding a valid destination', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-unavailable-'));
+  const prior = { id: 1, title: 'Destination', app: { pid: 42 }, processInstance: 'first' };
+  const protectedWindow = { id: 2, title: 'Destination', app: { pid: 43 }, processInstance: null };
+  const unknownDuringPoll = { id: 3, title: 'Destination', app: { pid: 44 }, processInstance: null };
+  const destination = { id: 4, title: 'Destination', app: { pid: 45 }, processInstance: 'fourth' };
+  let windows = [prior, protectedWindow], snapshots = 0;
+  const desktop = await startDesktop({ directory, handler: async request => {
+    if (request.command === 'windows') return { windows, complete: true, observationErrors: [] };
+    assert.equal(request.command, 'snapshot');
+    assert.equal(request.params.app, '45');
+    assert.equal(request.params.windowId, 4);
+    snapshots++;
+    return { snapshot: { app: destination.app, window: { id: 4, title: 'Destination' }, processInstance: 'fourth' } };
+  } });
+  const read = (request, options) => requestDesktop(request, { ...options, directory });
+  try {
+    const baseline = await read({ command: 'windows', session: 'task', params: { all: true } });
+    assert.equal(typeof baseline.inventory.token, 'string');
+    windows = [{ ...prior, processInstance: null }, protectedWindow, unknownDuringPoll];
+    const found = await waitFor({ command: 'wait-for', session: 'task', params: {
+      condition: 'window', afterInventory: baseline.inventory.token, windowTitle: 'Destination'
+    } }, { read, sleep: async () => {
+      windows = [{ ...prior, processInstance: 'restarted' }, { ...protectedWindow, processInstance: 'second' },
+        { ...unknownDuringPoll, processInstance: 'third' }, destination];
+    } });
+    assert.equal(found.snapshot.window.id, 4);
+    assert.equal(found.wait.polls, 2);
+    assert.equal(snapshots, 1);
+  } finally { await desktop.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('inventory wait crosses process boundary through real broker without adopting old or unrelated windows', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'wu-inventory-transition-'));
   const old = { id: 1, title: 'Destination', app: { pid: 42, name: 'Original' }, processInstance: 'first' };

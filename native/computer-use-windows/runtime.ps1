@@ -25,6 +25,9 @@ public static class OrcaDesktopWin32 {
     private static extern bool EnumWindows(EnumWindowCallback callback, IntPtr parameter);
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindow(IntPtr window);
     [DllImport("user32.dll")]
     public static extern bool IsIconic(IntPtr window);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -262,13 +265,21 @@ function ConvertTo-OrcaWheelParam([int]$Delta) {
     [IntPtr](($Delta -band 0xffff) -shl 16)
 }
 
-function Get-OrcaDesktopWindowProcesses {
+function Get-OrcaDesktopWindowProcesses([switch]$Strict) {
+    $processTable = @{}
+    foreach ($candidate in (Get-Process -ErrorAction Stop)) { $processTable[[int]$candidate.Id] = $candidate }
     $seen = New-Object 'System.Collections.Generic.HashSet[int]'
     foreach ($window in [OrcaDesktopWin32]::ProcessWindows(0)) {
         $ownerPid = [uint32]0
         [void][OrcaDesktopWin32]::GetWindowThreadProcessId([IntPtr]$window, [ref]$ownerPid)
-        if ($ownerPid -eq 0) { throw 'window_inventory_incomplete: window owner unavailable' }
-        if ($seen.Add([int]$ownerPid)) { Get-Process -Id ([int]$ownerPid) -ErrorAction Stop }
+        if ($ownerPid -eq 0) {
+            if ($Strict) { throw 'window_inventory_incomplete: window owner unavailable' }
+            continue
+        }
+        if ($seen.Add([int]$ownerPid)) {
+            if ($processTable.ContainsKey([int]$ownerPid)) { $processTable[[int]$ownerPid] }
+            elseif ($Strict) { throw 'window_inventory_incomplete: window process unavailable' }
+        }
     }
 }
 
@@ -317,16 +328,13 @@ function Find-OrcaProcess([string]$Query) {
         $processNeedle = $processNeedle.Substring(0, $processNeedle.Length - 4)
     }
 
-    $matches = @($processes | Where-Object {
-        $_.ProcessName -ieq $processNeedle -or
-        "$($_.ProcessName).exe" -ieq $needle -or
-        $_.MainWindowTitle -ieq $needle -or
-        $_.MainWindowTitle -ilike "*$needle*"
-    })
-    if ($matches.Count -gt 1) { throw "ambiguous_app: multiple processes match; use an explicit PID" }
-    if ($matches.Count -eq 1) {
-        Assert-OrcaProcessAllowed $matches[0]
-        return $matches[0]
+    $candidateProcesses = @($processes | Where-Object { $_.ProcessName -ieq $processNeedle })
+    if ($candidateProcesses.Count -eq 0) { $candidateProcesses = @($processes | Where-Object { $_.MainWindowTitle -ieq $needle }) }
+    if ($candidateProcesses.Count -eq 0) { $candidateProcesses = @($processes | Where-Object { $_.MainWindowTitle -ilike "*$needle*" }) }
+    if ($candidateProcesses.Count -gt 1) { throw "ambiguous_app: multiple processes match; use an explicit PID" }
+    if ($candidateProcesses.Count -eq 1) {
+        Assert-OrcaProcessAllowed $candidateProcesses[0]
+        return $candidateProcesses[0]
     }
 
     throw "appNotFound(`"$Query`")"
@@ -406,12 +414,15 @@ function Get-OrcaWindowClass([IntPtr]$Handle) { [OrcaDesktopWin32]::WindowClass(
 
 function Get-OrcaForegroundWindow { [OrcaDesktopWin32]::GetForegroundWindow() }
 
-function Get-OrcaProcessWindows($Process) {
+function Get-OrcaProcessWindows($Process, [switch]$Strict) {
     $index = 0
     foreach ($id in [OrcaDesktopWin32]::ProcessWindows([uint32]$Process.Id)) {
         $handle = [IntPtr]$id
         $rect = New-Object OrcaDesktopWin32+RECT
-        if (-not [OrcaDesktopWin32]::GetWindowRect($handle, [ref]$rect)) { throw "window_inventory_incomplete: cannot read window rectangle" }
+        if (-not [OrcaDesktopWin32]::GetWindowRect($handle, [ref]$rect)) {
+            if (-not $Strict -and -not [OrcaDesktopWin32]::IsWindow($handle)) { continue }
+            throw "window_inventory_incomplete: cannot read window rectangle"
+        }
         if ($rect.Right -le $rect.Left -or $rect.Bottom -le $rect.Top) { continue }
         [pscustomobject]@{
             index = $index; id = [int64]$id; title = [OrcaDesktopWin32]::WindowTitle($handle)
@@ -1106,12 +1117,12 @@ function Get-OrcaAppList {
 
 function Get-OrcaWindowList([string]$Query, [bool]$All = $false) {
     if ($All) {
-        $windows = @(foreach ($candidate in (Get-OrcaDesktopWindowProcesses)) {
+        $windows = @(foreach ($candidate in (Get-OrcaDesktopWindowProcesses -Strict)) {
             try { Assert-OrcaProcessAllowed $candidate } catch {
                 if ($_.Exception.Message -like 'appBlocked*') { continue }
                 throw
             }
-            Get-OrcaProcessWindows $candidate
+            Get-OrcaProcessWindows $candidate -Strict
         })
         return [pscustomobject]@{ app = $null; windows = $windows; complete = $true; observationErrors = @() }
     }

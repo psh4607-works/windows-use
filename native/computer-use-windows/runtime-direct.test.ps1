@@ -9,6 +9,16 @@ try { Find-OrcaProcess 'putty' | Out-Null } catch { $rejected = $_.Exception.Mes
 Assert-Test $rejected 'Ambiguous process names must be rejected'
 Assert-Test ((Find-OrcaProcess 'pid:12').Id -eq 12) 'Explicit PID must resolve'
 Write-Output 'PASS: strict process resolution'
+function Get-OrcaWindowProcesses { @([pscustomobject]@{Id=11;ProcessName='notepad';MainWindowTitle='Document'},[pscustomobject]@{Id=12;ProcessName='browser';MainWindowTitle='notepad.txt'}) }
+Assert-Test ((Find-OrcaProcess 'notepad').Id -eq 11) 'Exact process name must precede title substring'
+Assert-Test ((Find-OrcaProcess 'notepad.exe').Id -eq 11) 'Executable suffix must resolve exact process name'
+function Get-OrcaWindowProcesses { @([pscustomobject]@{Id=11;ProcessName='editor';MainWindowTitle='Target'},[pscustomobject]@{Id=12;ProcessName='browser';MainWindowTitle='Target docs'}) }
+Assert-Test ((Find-OrcaProcess 'Target').Id -eq 11) 'Exact title must precede title substring'
+$rejected=$false
+try { Find-OrcaProcess 'pid:99' | Out-Null } catch { $rejected=$_.Exception.Message -like 'appNotFound*' }
+Assert-Test $rejected 'Missing numeric PID must never fall back to title'
+function Get-OrcaWindowProcesses { @([pscustomobject]@{Id=11;ProcessName='putty';MainWindowTitle='one'},[pscustomobject]@{Id=12;ProcessName='putty';MainWindowTitle='two'}) }
+Write-Output 'PASS: tiered name resolution'
 $fixture = [pscustomobject]@{Id=11;StartTime=[datetime]'2026-01-01T00:00:00Z'}
 Assert-Test ((Get-OrcaProcessInstance $fixture) -eq '2026-01-01T00:00:00.0000000Z') 'Process instance must be UTC start time'
 $rejected = $false

@@ -394,8 +394,9 @@ polling은 호출 측에서 개별 읽기 RPC로 수행하여 broker를 대기 �
 같은 프로세스 안에서 HWND가 재사용되고 제목·클래스까지 같으면 새 창인지 완전히 구분할 수는 없습니다.
 
 `query.matches`에는 지원 `actions`, `isSelected`, `isEnabled`, `isKeyboardFocusable`,
-`hasKeyboardFocus`, `expansionState`, `actionabilityReasons`가 포함됩니다. 동작 미지원과
-네이티브 식별 정보 부재를 구분할 수 있습니다. 선택은 `invoke --action Select`, 요소
+`hasKeyboardFocus`, `expansionState`, `actionabilityReasons`가 포함됩니다. 펼침 상태는
+backend와 관계없이 `collapsed`, `expanded`, `partially_expanded`, `leaf_node`이며
+알 수 없으면 `null`입니다. 동작 미지원과 네이티브 식별 정보 부재를 구분할 수 있습니다. 선택은 `invoke --action Select`, 요소
 포커스는 `Focus`, 지원되는 트리 펼치기·접기는 `Expand`·`Collapse`를 사용합니다.
 `click`의 기본 실행과 단순 선택은 다르므로 선택만 필요하면 `Select`를 명시하세요.
 
@@ -417,6 +418,9 @@ windows-use wait-for --host windows-pc --session open-connection --condition win
 기준 목록 토큰은 2분 동안 유효하고 입력 이후에도 유지되지만, 다른 세션·pause/재개·
 서버 재시작 후에는 사용할 수 없습니다. 대기는 기준 목록에 없었던 PID·프로세스 시작
 시각·HWND 조합을 찾습니다. `--app`으로 정확한 앱 이름이나 PID를 추가 제한할 수 있습니다.
+프로세스 시작 시각을 읽지 못한 PID·HWND는 해당 토큰의 수명 동안 새 창 후보에서
+제외하며, 다른 창의 탐색은 계속합니다. 이후 식별 정보를 읽을 수 있어도 기존 창을
+새 창으로 오인하지 않도록 이 제외는 유지됩니다. 창 열거가 불완전하면 전체 조회를 거절합니다.
 후보가 복수이거나 관찰이 불완전하면 임의의 창을 선택하지 않습니다. 같은 제목의 새 창이
 열렸다는 사실만으로 원본 조작과의 인과관계가 증명되는 것은 아니므로 결과를 확인하세요.
 이미 열린 창의 활성화는 해당 PID·HWND로 일반 snapshot/wait를 사용합니다.

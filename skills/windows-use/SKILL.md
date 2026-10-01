@@ -75,7 +75,9 @@ observation; it does not authorize switching to a local viewer.
 
 - Use concrete PID and HWND from `apps`/`windows`. Ambiguous app names are rejected.
 - Inspect `query.matches[].actions`, `isSelected`, `hasKeyboardFocus`,
-  `expansionState`, and `actionabilityReasons`. A visible element may lack a safe
+  `expansionState`, and `actionabilityReasons`. Query expansion states are
+  `collapsed`, `expanded`, `partially_expanded`, `leaf_node`, or `null` when unknown.
+  A visible element may lack a safe
   native identity or supported actions. Do not invent an action or bypass that check.
 - Select with `invoke --action Select`; use `Expand`/`Collapse` only when advertised.
   Selection, focus and activation are separate operations. `click` can invoke the
@@ -99,7 +101,10 @@ and desktop access epoch. The wait filters out pre-existing windows, requires an
 exact expected title, and can constrain `--app` to an exact app name or PID. It
 does not prove that an unrelated window was caused by the source action. Duplicate
 candidates are errors. For an existing destination, use its concrete PID/HWND and
-ordinary snapshot/wait instead of a new-window baseline.
+ordinary snapshot/wait instead of a new-window baseline. If a process start time
+cannot be read, that PID/HWND pair is excluded as a new destination for the token
+lifetime, even if its identity later becomes readable. Other identifiable windows
+remain eligible. Incomplete window enumeration still rejects the inventory.
 
 Use the returned `snapshot.app.pid`, `snapshot.window.id` and `session.observation`
 for subsequent input. Never carry the source element index into the destination.
