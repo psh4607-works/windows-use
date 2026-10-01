@@ -13,7 +13,8 @@ public sealed class OrcaMsaaNode {
     public int[] runtimeId;
     public string automationId = "", name, controlType, localizedControlType, className = "MSAA", value;
     public bool valueAvailable, valueTruncated;
-    public bool isSelected, isFocused, isSensitive;
+    public bool isSelected, isFocused, isSensitive, isEnabled, isKeyboardFocusable, hasKeyboardFocus;
+    public string expansionState, actionabilityReason;
     public long nativeWindowHandle;
     public OrcaMsaaFrame frame;
     public string[] actions;
@@ -175,7 +176,9 @@ public static class OrcaMsaa {
             if (!String.IsNullOrEmpty(Optional(() => accessible.get_accDefaultAction(child), ""))) actions.Add("Invoke");
             if ((state & 0x200000) != 0) actions.Add("Select");
             if (role == 42 && (state & 0x40) == 0) actions.Add("SetValue");
-            if (identity == null) actions.Clear();
+            if ((state & 0x100000) != 0) actions.Add("Focus");
+            string reason = identity == null ? "identity_unavailable" : (state & 1) != 0 ? "disabled" : (state & 0x8000) != 0 ? "hidden" : (state & 0x10000) != 0 ? "offscreen" : null;
+            if (reason != null) actions.Clear();
             var frame = Optional<OrcaMsaaFrame>(() => {
                 int x, y, width, height;
                 accessible.accLocation(out x, out y, out width, out height, child);
@@ -187,6 +190,9 @@ public static class OrcaMsaa {
                 // Keep custom strings distinct from system constants, including strings like "42".
                 controlType = customRole == null ? "MSAA." + role : "MSAA.custom." + customRole,
                 localizedControlType = Limit(roleName, textLimit),
+                isEnabled = (state & 1) == 0, isKeyboardFocusable = (state & 0x100000) != 0, hasKeyboardFocus = (state & 4) != 0,
+                expansionState = (state & 0x200) != 0 ? "expanded" : (state & 0x400) != 0 ? "collapsed" : null,
+                actionabilityReason = reason,
                 isSelected = (state & 2) != 0, isFocused = (state & 4) != 0, nativeWindowHandle = window.ToInt64(),
                 frame = frame,
                 actions = actions.ToArray(), accessible = accessible, child = child, state = state
@@ -229,10 +235,15 @@ public static class OrcaMsaa {
         return true;
     }
 
+    public static bool IsFocused(OrcaMsaaNode node) {
+        return (Convert.ToInt32(node.accessible.get_accState(node.child)) & 4) != 0;
+    }
+
     public static void Act(OrcaMsaaNode node, string action, string value) {
         if (!SameIdentity(node.runtimeId, node.runtimeId)) throw new InvalidOperationException("stale MSAA element; native identity unavailable");
-        if ((node.state & 0x8001) != 0) throw new InvalidOperationException("MSAA element is hidden or disabled");
-        if (action == "invoke" && Array.IndexOf(node.actions, "Invoke") >= 0) node.accessible.accDoDefaultAction(node.child);
+        if ((node.state & 0x18001) != 0) throw new InvalidOperationException("MSAA element is hidden or disabled");
+        if (action == "focus" && Array.IndexOf(node.actions, "Focus") >= 0) node.accessible.accSelect(1, node.child);
+        else if (action == "invoke" && Array.IndexOf(node.actions, "Invoke") >= 0) node.accessible.accDoDefaultAction(node.child);
         else if (action == "select" && Array.IndexOf(node.actions, "Select") >= 0) node.accessible.accSelect(3, node.child);
         else if (action == "setValue" && Array.IndexOf(node.actions, "SetValue") >= 0) node.accessible.set_accValue(node.child, value);
         else throw new InvalidOperationException("Unsupported MSAA action: " + action);

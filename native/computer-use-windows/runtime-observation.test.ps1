@@ -146,7 +146,7 @@ namespace Windows.Automation {
 $source = Get-Content (Join-Path $PSScriptRoot 'runtime.ps1') -Raw
 $ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$null, [ref]$null)
 foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
-    if ($definition.Name -in @('Get-OrcaProperty', 'Get-OrcaRuntimeId', 'Test-OrcaSensitiveElement', 'Get-OrcaValueText', 'Get-OrcaActions', 'Get-OrcaMeaningfulActions', 'Format-OrcaSnapshotText', 'Format-OrcaValueSegment', 'Test-OrcaSuppressChildren', 'Get-OrcaTextSnippets', 'Test-OrcaPlainTextSubtree', 'New-OrcaElementRecord', 'Test-OrcaElementSelected', 'Get-OrcaElementFrame', 'Render-OrcaTree', 'Get-OrcaMsaaTree', 'New-OrcaSnapshot')) {
+    if ($definition.Name -in @('Get-OrcaProcessInstance', 'Get-OrcaProperty', 'Get-OrcaRuntimeId', 'Test-OrcaSensitiveElement', 'Get-OrcaValueText', 'Get-OrcaActions', 'Get-OrcaMeaningfulActions', 'Format-OrcaSnapshotText', 'Format-OrcaValueSegment', 'Test-OrcaSuppressChildren', 'Get-OrcaTextSnippets', 'Test-OrcaPlainTextSubtree', 'New-OrcaElementRecord', 'Test-OrcaElementSelected', 'Get-OrcaElementFrame', 'Render-OrcaTree', 'Get-OrcaMsaaTree', 'New-OrcaSnapshot')) {
         Invoke-Expression $definition.Extent.Text
     }
 }
@@ -190,6 +190,7 @@ Write-Output 'PASS: UIA omissions, optional patterns, compact summaries, and san
 
 # Exercise the actual native snapshot wrapper without selecting or modifying a desktop.
 function Find-OrcaProcess($Query) { [pscustomobject]@{ MainWindowHandle = 123; MainWindowTitle = 'Fixture'; WindowIndex = 0 } }
+function Get-OrcaWindowClass($Handle) { 'Fixture' }
 function Select-OrcaWindowTarget($Process, $WindowId, $WindowIndex) { $Process }
 function Assert-OrcaWindowTarget($Process, $WindowId, $Other) {}
 function Get-OrcaWindowId($Process) { 123 }

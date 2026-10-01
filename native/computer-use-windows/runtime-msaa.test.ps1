@@ -47,12 +47,13 @@ try {
     # A service-session test has no Process.MainWindowHandle; bind only this test's real form.
     function Find-OrcaProcess([string]$Query) {
         if ($Query -ne [string]$PID) { throw 'Unexpected fixture process' }
-        [pscustomobject]@{Id=$PID;ProcessName='powershell';MainWindowHandle=$form.Handle;MainWindowTitle=$form.Text}
+        [pscustomobject]@{Id=$PID;ProcessName='powershell';StartTime=[Diagnostics.Process]::GetCurrentProcess().StartTime;MainWindowHandle=$form.Handle;MainWindowTitle=$form.Text}
     }
     function Get-OrcaProcessWindows($Process) {
         [pscustomobject]@{id=[long]$form.Handle;title=$form.Text;index=0}
     }
     $snapshot = (Invoke-OrcaOperation ([pscustomobject]@{tool='get_app_state';app=[string]$PID;windowId=[long]$form.Handle;noScreenshot=$true;accessibility='msaa'})).snapshot
+    if ($snapshot.processInstance -cne [Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToString('o')) { throw 'Fixture snapshot must carry the current process identity' }
     if ($snapshot.accessibility -ne 'msaa') { throw 'MSAA backend was not used' }
     if (($snapshot | ConvertTo-Json -Depth 30) -match 'fixture-secret-must-stay-redacted') { throw 'Protected value leaked into snapshot' }
     $unidentifiedNodes = @($snapshot.elements | Where-Object { $_.name -eq 'Unidentified fixture' -and $_.controlType -eq 'MSAA.43' })
@@ -64,7 +65,7 @@ try {
     if (-not $rejected -or $script:unidentifiedInvocations -ne 0) { throw 'Unidentified WinForms control received input' }
     $buttons = @($snapshot.elements | Where-Object { $_.name -eq 'Continue fixture' -and $_.actions -contains 'Invoke' })
     if ($buttons.Count -ne 1) { throw 'Native MSAA button was not exposed as an actionable element' }
-    $request = [pscustomobject]@{tool='perform_secondary_action';app=[string]$PID;windowId=[long]$form.Handle;noScreenshot=$true;accessibility='msaa';element=$buttons[0];action='invoke'}
+    $request = [pscustomobject]@{tool='perform_secondary_action';expectedProcessInstance=$snapshot.processInstance;app=[string]$PID;windowId=[long]$form.Handle;noScreenshot=$true;accessibility='msaa';element=$buttons[0];action='invoke'}
     $null = Invoke-OrcaOperation $request
     [System.Windows.Forms.Application]::DoEvents()
     if ($form.Invocations -ne 1) { throw 'MSAA invocation did not reach the fixture button' }

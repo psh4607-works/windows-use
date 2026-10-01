@@ -386,6 +386,66 @@ polling은 호출 측에서 개별 읽기 RPC로 수행하여 broker를 대기 �
 
 ## 검증 범위
 
+### Windows UI 선택과 새 창 연결
+
+원격 Windows의 PID·HWND를 지정하여 앱을 직접 조작합니다. 같은 이름의 앱이 여러 개면
+`ambiguous_app`으로 거절하므로 `apps` 또는 `windows --all`에서 확인한 PID를 사용하세요.
+입력은 관찰한 프로세스의 시작 시각도 검사하여 재사용된 PID로 전달되지 않도록 합니다.
+같은 프로세스 안에서 HWND가 재사용되고 제목·클래스까지 같으면 새 창인지 완전히 구분할 수는 없습니다.
+
+`query.matches`에는 지원 `actions`, `isSelected`, `isEnabled`, `isKeyboardFocusable`,
+`hasKeyboardFocus`, `expansionState`, `actionabilityReasons`가 포함됩니다. 동작 미지원과
+네이티브 식별 정보 부재를 구분할 수 있습니다. 선택은 `invoke --action Select`, 요소
+포커스는 `Focus`, 지원되는 트리 펼치기·접기는 `Expand`·`Collapse`를 사용합니다.
+`click`의 기본 실행과 단순 선택은 다르므로 선택만 필요하면 `Select`를 명시하세요.
+
+키보드 입력에 `--element`를 주면 해당 요소의 실제 포커스를 검사합니다. 자동으로
+포커스를 옮기지 않으며, 불일치하면 입력 전에 거절합니다. 창 활성화는 기존
+`--restore-window`로 요청하고, 요소 포커스는 별도로 확인하세요.
+
+다른 프로세스의 새 창을 찾을 때는 조작 전에 전체 창 목록을 기준으로 저장합니다.
+아래 자리표시자는 실제 조회 결과로 바꾸며, 같은 host/session/remote-dir/remote-home을
+사용합니다.
+
+```text
+windows-use windows --host windows-pc --all --session open-connection
+# inventory.token을 보관하고, 관찰한 원본 창의 접속 동작을 한 번 실행합니다.
+windows-use wait-for --host windows-pc --session open-connection --condition window \
+  --after-inventory <inventory.token> --window-title <예상하는-정확한-창-제목>
+```
+
+기준 목록 토큰은 2분 동안 유효하고 입력 이후에도 유지되지만, 다른 세션·pause/재개·
+서버 재시작 후에는 사용할 수 없습니다. 대기는 기준 목록에 없었던 PID·프로세스 시작
+시각·HWND 조합을 찾습니다. `--app`으로 정확한 앱 이름이나 PID를 추가 제한할 수 있습니다.
+후보가 복수이거나 관찰이 불완전하면 임의의 창을 선택하지 않습니다. 같은 제목의 새 창이
+열렸다는 사실만으로 원본 조작과의 인과관계가 증명되는 것은 아니므로 결과를 확인하세요.
+이미 열린 창의 활성화는 해당 PID·HWND로 일반 snapshot/wait를 사용합니다.
+
+성공 응답의 `snapshot.app.pid`, `snapshot.window.id`, `session.observation`을 다음
+입력에 사용하세요. 새 창에서는 요소를 다시 조회합니다. 메뉴도 별도 HWND일 수 있으므로
+창 목록을 갱신하고 메뉴 항목을 관찰한 뒤 실행합니다. 시각 확인은 해당 창의
+`snapshot --screenshot <새 파일>`로 수행합니다.
+
+조작 직후 원본 창이 닫혀 snapshot을 만들 수 없으면 실행 결과를 보존하고
+`snapshot: null`, `session.observation: null`을 반환합니다. 새 관찰을 받기 전에는
+입력할 수 없습니다. 응답 유실·관찰 실패를 이유로 같은 접속 동작을 재실행하지 마세요.
+
+전용 Windows 테스트 화면과 실기 실행기는 다음과 같습니다. 입력 데이터와 창 제목은
+검증용으로 생성하며, 트리 선택·메뉴·별도 프로세스 창·포커스 거절·한글 입력을 검사합니다.
+설치 디렉터리와 `WINDOWS_USE_HOME`이 일치하는 interactive 테스트 서버에서 실행하세요.
+
+```text
+powershell.exe -NoProfile -File test/windows-transition-fixture.ps1 -StateDirectory <test-state>
+node test/windows-transition-smoke.mjs <host> <remote-package> <remote-home> <source-pid> <test-state> <local-evidence>
+```
+
+fixture는 기본 90분 후 종료하고, 상태 디렉터리에 `stop` 파일을 만들면 소유한 테스트
+창들이 종료됩니다. 원시 화면과 환경별 결과는 공개 저장소에 추가하지 마세요.
+
+UIA와 MSAA 모두 루트만 반환해도 앱의 접근성 미지원으로 단정하지 마세요. 같은 PID·HWND를
+정상 동작하는 설치본과 비교하고, interactive 세션과 서버·대상 앱의 실행 권한을 확인하세요.
+권한 차이는 내부 트리 조회에 영향을 줄 수 있습니다. 진단 없이 자동으로 권한을 높이지 마세요.
+
 ### MSAA와 팝업 창
 
 UIA 스냅샷에 앱 내부 항목이 빠지면 `--accessibility msaa`로 MSAA 트리를 명시적으로

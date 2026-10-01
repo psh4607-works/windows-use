@@ -96,3 +96,31 @@ test('same-session concurrent operations are rejected before touching the deskto
     }), /busy/i);
   } finally { await rm(stateDir, { recursive: true, force: true }); }
 });
+
+test('completed input without a post-action snapshot returns no actionable token', async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), 'wu-closed-source-'));
+  let calls = 0;
+  const providerFactory = () => ({ snapshots: new Map(), async snapshot() { return { snapshot: { id: 'initial' } }; },
+    async action() { calls++; return { snapshot: null, action: { verification: { state: 'unverified', reason: 'window_changed' } } }; }, shutdown() {} });
+  try {
+    const first = await executeRequest({ command: 'snapshot', session: 'task', params: { app: 'fixture' } }, { stateDir, providerFactory });
+    const req = { command: 'press-key', session: 'task', observation: first.session.observation, params: { app: 'fixture', key: 'Enter' } };
+    const result = await executeRequest(req, { stateDir, providerFactory });
+    assert.equal(result.session.observation, null);
+    assert.equal(result.action.verification.reason, 'window_changed');
+    await assert.rejects(executeRequest(req, { stateDir, providerFactory }), /fresh snapshot/);
+    assert.equal(calls, 1);
+  } finally { await rm(stateDir, { recursive: true, force: true }); }
+});
+
+test('desktop inventory rejects conflicting app and malformed scope before provider calls', async () => {
+  let calls = 0;
+  const providerFactory = () => { calls++; return { async listWindows() { return { windows: [] }; }, shutdown() {} }; };
+  for (const request of [
+    { command: 'windows', params: { all: true } },
+    { command: 'windows', session: 'task', params: { all: true, app: 'fixture' } },
+    { command: 'snapshot', session: 'task', params: { all: true, app: 'fixture' } },
+    { command: 'windows', session: 'task', params: { afterInventory: 'token', app: 'fixture' } }
+  ]) await assert.rejects(executeRequest(request, { providerFactory }), /inventory|--all/i);
+  assert.equal(calls, 0);
+});

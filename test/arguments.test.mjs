@@ -38,3 +38,10 @@ test('SSH sends a fixed encoded launcher and never embeds UI text in the command
   assert.doesNotMatch(script, /ExecutionPolicy|Set-ExecutionPolicy/i);
   assert.throws(() => sshInvocation('-oProxyCommand=bad'), /host/i);
 });
+
+test('desktop inventory CLI carries all and after-inventory only on supported read commands', () => {
+  assert.equal(parseCli(['windows', '--all', '--session', 'task']).request.params.all, true);
+  assert.equal(parseCli(['wait-for', '--condition', 'window', '--after-inventory', 'token', '--window-title', 'Exact', '--session', 'task']).request.params.afterInventory, 'token');
+  assert.throws(() => parseCli(['click', '--all']), /windows/);
+  assert.throws(() => parseCli(['snapshot', '--after-inventory', 'token']), /wait-for/);
+});

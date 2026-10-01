@@ -30,6 +30,8 @@ Act:     windows-use set-value --app Notepad --session my-task \\
 --remote-dir <path>               Select a remote package directory
 --remote-home <path>              Select its WINDOWS_USE_HOME (must match the server)
 --session <task-id>               Isolate observed elements for this task
+--all                            windows: capture complete desktop inventory (session required)
+--after-inventory <token>         wait-for window: new HWND/process since baseline; exact title required
 --observation <token>             Required for actions; use the latest snapshot token
 --window-id <id> | --window-index <index>
 --accessibility uia|msaa          Snapshot backend (default uia); actions inherit it
@@ -41,14 +43,14 @@ Act:     windows-use set-value --app Notepad --session my-task \\
 --poll-ms <50-10000>               wait-for interval between reads (default 250)
 --restore-window                 Explicitly permit restoring/focusing the target
 --element <index>                 Accessibility element from the latest snapshot
---action <name>                   Accessible secondary action (invoke)
+--action <name>                   Accessible action: Invoke, Select, Focus, Expand, Collapse, Toggle
 --text <text> | --text-file <file> Text for typing/pasting; files avoid argv exposure
 --value <text> | --value-file <file>
 --key <key>                       Key or hotkey, e.g. Enter, Shift+F10, F1-F16, Ctrl+s
 --allow-pointer                  Permit coordinate/fallback pointer input only when authorized
 --screenshot <local-file>         Save PNG locally; images are omitted by default
 --json                           Results are always JSON
-Snapshots expire after two minutes. Re-observe after errors or another task's input.
+Snapshots and inventory baselines expire after two minutes. Re-observe after errors or another task's input.
 Query/wait never focus or send input; no --window-index or --screenshot.
 wait-for value uses --value/--value-file; changed compares against its first match.
 Ambiguous waits fail; timeout is wait_timeout with exit 1. Ctrl+C cancels the wait.

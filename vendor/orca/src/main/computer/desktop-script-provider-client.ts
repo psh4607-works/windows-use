@@ -104,10 +104,13 @@ export class DesktopScriptProviderClient {
     }
     const response = await this.callBridge({
       tool: 'list_windows',
-      app: stringParam(params, 'app')
+      all: params.all === true,
+      app: params.all === true ? undefined : stringParam(params, 'app')
     })
     return {
-      app: normalizeBridgeApp(response.app),
+      app: response.app ? normalizeBridgeApp(response.app) : null,
+      complete: response.complete,
+      observationErrors: response.observationErrors,
       windows: (response.windows ?? []).map((window) => ({
         index: window.index,
         app: normalizeBridgeApp(window.app),
@@ -120,6 +123,11 @@ export class DesktopScriptProviderClient {
         isMinimized: window.isMinimized ?? null,
         isOffscreen: window.isOffscreen ?? null,
         screenIndex: window.screenIndex ?? null,
+        processInstance: window.processInstance ?? null,
+        className: window.className ?? null,
+        ownerWindowId: window.ownerWindowId ?? null,
+        rootOwnerWindowId: window.rootOwnerWindowId ?? null,
+        isForeground: window.isForeground ?? null,
         platform: window.platform
       }))
     }
@@ -160,7 +168,11 @@ export class DesktopScriptProviderClient {
     const sensitiveBefore = sensitiveAction(current ?? undefined, element)
     let response = await this.callBridge({
       tool: bridgeTool(method),
-      app,
+      app: current?.processInstance && current?.app?.pid ? `pid:${current.app.pid}` : app,
+      expectedProcessInstance: current?.processInstance,
+      expectedWindowTitle: current?.windowTitle,
+      expectedWindowClassName: current?.windowClassName,
+      allowPointer: params.allowPointer === true,
       accessibility: optionalStringParam(params, 'accessibility'),
       element,
       fromElement,
@@ -206,6 +218,10 @@ export class DesktopScriptProviderClient {
     )
     if (isWindowChangedAction(action)) {
       this.snapshotStore.forgetWindowTarget(app, params, current)
+    }
+    if (!response.snapshot) {
+      this.snapshotStore.clear()
+      return normalizeComputerActionResult({ snapshot: null, screenshot: null, action })
     }
     return normalizeComputerActionResult({
       ...this.rememberAndRender(

@@ -113,3 +113,18 @@ test('explicit false sensitivity markers preserve ordinary literal redaction tex
     assert.equal(found.value, '[redacted]');
   }, { elements: [{ index: 1, controlType: 'ControlType.Edit', value: '[redacted]', valueAvailable: true, isSensitive: false }] });
 });
+
+test('query explains native actionability without implying a unique disabled control is actionable', async () => {
+  await fixture(async ({ query }) => {
+    const result = await query({ name: 'Connect' });
+    const match = result.query.matches[0];
+    assert.equal(result.query.unique, true);
+    assert.deepEqual(match.actions, ['Invoke', 'Focus']);
+    assert.equal(match.isEnabled, false);
+    assert.equal(match.isKeyboardFocusable, true);
+    assert.equal(match.hasKeyboardFocus, false);
+    assert.equal(match.expansionState, 'Collapsed');
+    assert.equal(match.isSelected, true);
+    assert.deepEqual(match.actionabilityReasons, ['disabled']);
+  }, { elements: [{ index: 1, controlType: 'ControlType.Button', name: 'Connect', actions: ['Invoke', 'Focus'], isEnabled: false, isKeyboardFocusable: true, hasKeyboardFocus: false, isSelected: true, expansionState: 'Collapsed' }] });
+});

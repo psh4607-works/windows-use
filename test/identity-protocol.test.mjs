@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readBuildIdentity } from '../src/build-identity.mjs';
 import { sshInvocation } from '../src/ssh.mjs';
+import { assertCompatible } from '../src/identity-protocol.mjs';
 import { parseCli } from '../src/arguments.mjs';
 
 async function api() {
@@ -95,4 +96,12 @@ test('doctor reports failed SSH diagnostics without leaking remote stderr paths'
   assert.equal(result.desktop.ok, false);
   assert.equal(result.identities.caller.buildId, caller.buildId);
   assert.ok(!JSON.stringify(result).includes('private'));
+});
+
+test('desktop discovery and input refuse servers missing direct workflow safety before dispatch', async () => {
+  const caller = { protocolRevision: 1, integrity: 'verified', capabilities: { observationSafety: 1, query: 1, waitAccessEpoch: 1, directWindowWorkflow: 1 } };
+  const server = { ...caller, capabilities: { observationSafety: 1, query: 1, waitAccessEpoch: 1 } };
+  for (const request of [{ command: 'windows', params: { all: true } }, { command: 'invoke', params: { action: 'Focus' } }, { command: 'press-key', params: {} }]) {
+    assert.throws(() => assertCompatible(caller, server, request), error => error.code === 'unsupported_capability');
+  }
 });

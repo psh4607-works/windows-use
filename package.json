@@ -11,7 +11,7 @@
   "scripts": {
     "pretest": "npm run build",
     "test": "node --test test/*.test.mjs",
-    "test:native-isolated": "pwsh -NoProfile -File native/computer-use-windows/runtime-observation.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-keyboard.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-windows.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-msaa-isolated.test.ps1",
+    "test:native-isolated": "pwsh -NoProfile -File native/computer-use-windows/runtime-observation.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-keyboard.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-windows.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-msaa-isolated.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-msaa-identity.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-direct.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-inventory.test.ps1 && pwsh -NoProfile -File native/computer-use-windows/runtime-native-guard.test.ps1",
     "build": "node scripts/build.mjs",
     "prepack": "npm run build",
     "package:windows": "node scripts/package-windows.mjs",

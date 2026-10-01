@@ -23,6 +23,13 @@ export async function executeRequest(request, {
   if (!request || !COMMANDS.includes(request.command)) throw new Error('Unknown command');
   const params = { noScreenshot: true, ...request.params };
   const observing = ['snapshot', 'query'].includes(request.command);
+  if (params.all !== undefined || params.afterInventory !== undefined) {
+    if (request.command !== 'windows' || params.all !== true || params.app !== undefined ||
+        !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(request.session ?? '') ||
+        (params.afterInventory !== undefined && (typeof params.afterInventory !== 'string' || !params.afterInventory))) {
+      throw Object.assign(new Error('Desktop inventory requires windows --all, a valid session and no app selector.'), { code: 'invalid_inventory' });
+    }
+  }
   if (params.accessibility !== undefined && !['uia', 'msaa'].includes(params.accessibility)) throw new Error('Invalid accessibility backend');
   if (['capabilities', 'apps', 'windows'].includes(request.command)) {
     const provider = providerFactory();
@@ -79,6 +86,9 @@ export async function executeRequest(request, {
     const result = request.command === 'query' ? await observeQuery(provider, params) : request.command === 'snapshot'
       ? await provider.snapshot(params)
       : await provider.action(method, params);
+    if (!observing && result.snapshot === null) {
+      return { ...result, session: { id: request.session, observation: null, expiresAt: null, accessibility: params.accessibility } };
+    }
     const observation = randomUUID();
     const expiresAt = now() + SESSION_TTL_MS;
     const snapshots = [...provider.snapshots].map(([key, snapshot]) => [key, { ...snapshot, screenshotPngBase64: null }]);
