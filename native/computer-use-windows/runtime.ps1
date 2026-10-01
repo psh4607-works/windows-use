@@ -268,7 +268,8 @@ function ConvertTo-OrcaWheelParam([int]$Delta) {
 function Get-OrcaDesktopWindowProcesses([switch]$Strict) {
     $processTable = @{}
     foreach ($candidate in (Get-Process -ErrorAction Stop)) { $processTable[[int]$candidate.Id] = $candidate }
-    $seen = New-Object 'System.Collections.Generic.HashSet[int]'
+    $lateOwners = @{}
+    $yielded = New-Object 'System.Collections.Generic.HashSet[int]'
     foreach ($window in [OrcaDesktopWin32]::ProcessWindows(0)) {
         $ownerPid = [uint32]0
         [void][OrcaDesktopWin32]::GetWindowThreadProcessId([IntPtr]$window, [ref]$ownerPid)
@@ -276,24 +277,31 @@ function Get-OrcaDesktopWindowProcesses([switch]$Strict) {
             if ($Strict) { throw 'window_inventory_incomplete: window owner unavailable' }
             continue
         }
-        if ($seen.Add([int]$ownerPid)) {
-            if ($processTable.ContainsKey([int]$ownerPid)) { $processTable[[int]$ownerPid] }
-            else {
-                # The owner may have started after the bulk process-table read.
-                $lateOwner = $null
-                try { $lateOwner = Get-Process -Id ([int]$ownerPid) -ErrorAction Stop } catch {}
-                if ($null -ne $lateOwner) {
-                    $confirmedOwnerPid = [uint32]0
-                    [void][OrcaDesktopWin32]::GetWindowThreadProcessId([IntPtr]$window, [ref]$confirmedOwnerPid)
-                    if ($confirmedOwnerPid -eq 0 -or $confirmedOwnerPid -ne $ownerPid) {
-                        if ($Strict) { throw 'window_inventory_incomplete: window owner changed during process lookup' }
-                        continue
-                    }
-                    $lateOwner
-                }
-                elseif ($Strict) { throw 'window_inventory_incomplete: window process unavailable' }
-            }
+        if ($yielded.Contains([int]$ownerPid)) { continue }
+        if ($processTable.ContainsKey([int]$ownerPid)) {
+            [void]$yielded.Add([int]$ownerPid)
+            $processTable[[int]$ownerPid]
+            continue
         }
+        # Cache the lookup separately from accepted owners so a rejected HWND
+        # cannot hide a later surviving HWND of the same process.
+        if (-not $lateOwners.ContainsKey([int]$ownerPid)) {
+            $lateOwners[[int]$ownerPid] = $null
+            try { $lateOwners[[int]$ownerPid] = Get-Process -Id ([int]$ownerPid) -ErrorAction Stop } catch {}
+        }
+        $lateOwner = $lateOwners[[int]$ownerPid]
+        if ($null -eq $lateOwner) {
+            if ($Strict) { throw 'window_inventory_incomplete: window process unavailable' }
+            continue
+        }
+        $confirmedOwnerPid = [uint32]0
+        [void][OrcaDesktopWin32]::GetWindowThreadProcessId([IntPtr]$window, [ref]$confirmedOwnerPid)
+        if ($confirmedOwnerPid -ne $ownerPid) {
+            if ($Strict) { throw 'window_inventory_incomplete: window owner changed during process lookup' }
+            continue
+        }
+        [void]$yielded.Add([int]$ownerPid)
+        $lateOwner
     }
 }
 

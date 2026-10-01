@@ -6,9 +6,10 @@ using System;
 public static class OrcaDesktopWin32 {
  public static bool Churn=false;
  public static bool AfterLookup=false;
+ public static bool OnlyFirst=false;
  public static uint ReplacementOwner=2;
  public static long[] ProcessWindows(uint pid) { if(pid!=0) throw new Exception("Must enumerate desktop HWNDs"); return new long[]{11,12,13,14}; }
- public static uint GetWindowThreadProcessId(IntPtr h, out uint pid) { pid=AfterLookup && h.ToInt64()>=13?ReplacementOwner:Churn && h.ToInt64()==12?0u:(h.ToInt64()>=13?2u:1u); return 10; }
+ public static uint GetWindowThreadProcessId(IntPtr h, out uint pid) { pid=AfterLookup && h.ToInt64()>=13 && (!OnlyFirst || h.ToInt64()==13)?ReplacementOwner:Churn && h.ToInt64()==12?0u:(h.ToInt64()>=13?2u:1u); return 10; }
 }
 '@
 $script:processReads=0
@@ -37,9 +38,10 @@ Write-Output 'PASS: popup-only owners remain targetable'
 [OrcaDesktopWin32]::Churn=$true
 $script:processTable=@($script:processTable | Where-Object Id -eq 1)
 $script:processReads=0
+$script:targetedReads=0
 $survivors=@(Get-OrcaWindowProcesses)
 if($survivors.Count -ne 1 -or $survivors[0].Id -ne 1){throw 'App resolution must tolerate vanished unrelated windows and processes'}
-if($script:processReads -ne 1){throw 'App discovery must read one process table'}
+if($script:processReads -ne 1 -or $script:targetedReads -ne 1){throw 'App discovery must read one bulk table and cache a missing owner lookup'}
 $rejected=$false
 try { Get-OrcaDesktopWindowProcesses -Strict | Out-Null } catch { $rejected=$_.Exception.Message -like '*window_inventory_incomplete*' }
 if(-not $rejected){throw 'Strict global inventory must reject desktop churn'}
@@ -66,6 +68,21 @@ foreach($replacement in @(0,3)) {
  try { Get-OrcaDesktopWindowProcesses -Strict | Out-Null } catch { $rejected=$_.Exception.Message -like '*window_inventory_incomplete*' }
  if(-not $rejected){throw 'Strict inventory must reject owner changes during late lookup'}
 }
+[OrcaDesktopWin32]::OnlyFirst=$true
+foreach($replacement in @(0,3)) {
+ [OrcaDesktopWin32]::ReplacementOwner=$replacement
+ [OrcaDesktopWin32]::AfterLookup=$false
+ $script:targetedReads=0
+ $survivors=@(Get-OrcaDesktopWindowProcesses)
+ if(@($survivors | Where-Object Id -eq 2).Count -ne 1){throw 'A vanished first HWND must not hide a later stable HWND of the same owner'}
+ if($script:targetedReads -ne 1){throw 'Later valid HWND must reuse the cached late-owner lookup'}
+ [OrcaDesktopWin32]::AfterLookup=$false
+ $rejected=$false
+ try { Get-OrcaDesktopWindowProcesses -Strict | Out-Null } catch { $rejected=$_.Exception.Message -like '*window_inventory_incomplete*' }
+ if(-not $rejected){throw 'Strict inventory must reject first HWND churn even when a later HWND survives'}
+}
+Write-Output 'PASS: first HWND churn preserves later stable HWND without duplicate lookups; strict still rejects'
+[OrcaDesktopWin32]::OnlyFirst=$false
 [OrcaDesktopWin32]::ReplacementOwner=2
 [OrcaDesktopWin32]::AfterLookup=$false
 Write-Output 'PASS: fallback rechecks original HWND owner; changed or destroyed windows cannot adopt stale owner'
