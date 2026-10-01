@@ -278,7 +278,13 @@ function Get-OrcaDesktopWindowProcesses([switch]$Strict) {
         }
         if ($seen.Add([int]$ownerPid)) {
             if ($processTable.ContainsKey([int]$ownerPid)) { $processTable[[int]$ownerPid] }
-            elseif ($Strict) { throw 'window_inventory_incomplete: window process unavailable' }
+            else {
+                # The owner may have started after the bulk process-table read.
+                $lateOwner = $null
+                try { $lateOwner = Get-Process -Id ([int]$ownerPid) -ErrorAction Stop } catch {}
+                if ($null -ne $lateOwner) { $lateOwner }
+                elseif ($Strict) { throw 'window_inventory_incomplete: window process unavailable' }
+            }
         }
     }
 }

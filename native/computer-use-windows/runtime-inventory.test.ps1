@@ -5,13 +5,26 @@ Add-Type -TypeDefinition @'
 using System;
 public static class OrcaDesktopWin32 {
  public static bool Churn=false;
- public static long[] ProcessWindows(uint pid) { if(pid!=0) throw new Exception("Must enumerate desktop HWNDs"); return new long[]{11,12,13}; }
- public static uint GetWindowThreadProcessId(IntPtr h, out uint pid) { pid=Churn && h.ToInt64()==12?0u:(h.ToInt64()==13?2u:1u); return 10; }
+ public static long[] ProcessWindows(uint pid) { if(pid!=0) throw new Exception("Must enumerate desktop HWNDs"); return new long[]{11,12,13,14}; }
+ public static uint GetWindowThreadProcessId(IntPtr h, out uint pid) { pid=Churn && h.ToInt64()==12?0u:(h.ToInt64()>=13?2u:1u); return 10; }
 }
 '@
 $script:processReads=0
 $script:processTable=@([pscustomobject]@{Id=1;ProcessName='fixture';MainWindowHandle=[IntPtr]0},[pscustomobject]@{Id=2;ProcessName='fixture';MainWindowHandle=[IntPtr]0})
-function Get-Process { param($Id) $script:processReads++; if($null -ne $Id){$script:processTable | Where-Object Id -eq $Id}else{$script:processTable} }
+$script:targetedReads=0
+$script:lateProcess=$null
+function Get-Process {
+ param($Id)
+ if($null -ne $Id){
+  $script:targetedReads++
+  if($script:lateProcess -and $script:lateProcess.Id -eq $Id){return $script:lateProcess}
+  $found=@($script:processTable | Where-Object Id -eq $Id)
+  if($found.Count -eq 0){throw 'Process disappeared'}
+  return $found
+ }
+ $script:processReads++
+ $script:processTable
+}
 $processes=@(Get-OrcaDesktopWindowProcesses)
 if($processes.Count -ne 2 -or $processes[0].MainWindowHandle -ne 0){throw 'Desktop inventory must discover unique owners without MainWindowHandle'}
 Write-Output 'PASS: HWND-first desktop inventory includes popup-only processes'
@@ -31,6 +44,14 @@ $rejected=$false
 try { Get-OrcaDesktopWindowProcesses -Strict | Out-Null } catch { $rejected=$_.Exception.Message -like '*window_inventory_incomplete*' }
 if(-not $rejected){throw 'Strict global inventory must reject missing owner process'}
 Write-Output 'PASS: app discovery tolerates churn while strict inventory rejects it'
+$script:lateProcess=[pscustomobject]@{Id=2;ProcessName='new-fixture';MainWindowHandle=[IntPtr]0}
+foreach($strict in @($false,$true)) {
+ $script:processReads=0; $script:targetedReads=0
+ $lateOwners=@(Get-OrcaDesktopWindowProcesses -Strict:$strict)
+ if($lateOwners.Count -ne 2 -or $lateOwners[1].Id -ne 2){throw 'New window owner absent from initial process table must resolve in both modes'}
+ if($script:processReads -ne 1 -or $script:targetedReads -ne 1){throw 'Fallback must read missing owner once and preserve one bulk read'}
+}
+Write-Output 'PASS: late-created owner resolves once in normal and strict inventories'
 $source=Get-Content (Join-Path $PSScriptRoot 'runtime.ps1') -Raw
 $method=[regex]::Match($source,'(?s)public static long\[\] ProcessWindows\(.*?\n    }').Value
 Add-Type -TypeDefinition (@'
